@@ -1,0 +1,125 @@
+﻿<Project DefaultTargets="Build" ToolsVersion="3.5" InitialTargets="ValidateSolutionConfiguration;ValidateToolsVersions" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <_SolutionProjectConfiguration>Debug|x64</_SolutionProjectConfiguration>
+    <_SolutionProjectToolsVersion>3.5</_SolutionProjectToolsVersion>
+    <_SolutionProjectCacheVersion>4.0</_SolutionProjectCacheVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <_SolutionProjectProjects Include="usb_bindings.vcproj" />
+  </ItemGroup>
+  <UsingTask TaskName="Microsoft.Build.Tasks.CreateTemporaryVCProject" AssemblyName="Microsoft.Build.Tasks.v3.5, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  <UsingTask TaskName="Microsoft.Build.Tasks.ResolveVCProjectOutput" AssemblyName="Microsoft.Build.Tasks.v3.5, Version=3.5.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a" />
+  <PropertyGroup Condition=" '$(Configuration)' == '' ">
+    <Configuration>Debug</Configuration>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Platform)' == '' ">
+    <Platform>x64</Platform>
+  </PropertyGroup>
+  <PropertyGroup Condition=" ('$(AspNetConfiguration)' == '') ">
+    <AspNetConfiguration>$(Configuration)</AspNetConfiguration>
+  </PropertyGroup>
+  <PropertyGroup>
+    <SolutionDir>C:\users\henningknut\node-usb\build\</SolutionDir>
+    <SolutionExt>.sln</SolutionExt>
+    <SolutionFileName>binding.sln</SolutionFileName>
+    <SolutionName>binding</SolutionName>
+    <SolutionPath>C:\users\henningknut\node-usb\build\binding.sln</SolutionPath>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetFrameworkVersion Condition="'$(TargetFrameworkVersion)' == '' and '$(MSBuildToolsVersion)' == '2.0'">v2.0</TargetFrameworkVersion>
+    <TargetFrameworkVersion Condition="'$(TargetFrameworkVersion)' == '' and ('$(MSBuildToolsVersion)' == '3.5' or '$(MSBuildToolsVersion)' == '3.0')">v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion Condition="'$(TargetFrameworkVersion)' == '' and '$(MSBuildToolsVersion)' == '4.0'">v4.0</TargetFrameworkVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition=" ('$(Configuration)' == 'Debug') and ('$(Platform)' == 'x64') ">
+    <CurrentSolutionConfigurationContents>
+      <SolutionConfiguration xmlns="">
+        <ProjectConfiguration Project="{3C8DDBE7-C59F-7290-3F55-C280DCD1AB57}">Debug|x64</ProjectConfiguration>
+      </SolutionConfiguration>
+    </CurrentSolutionConfigurationContents>
+  </PropertyGroup>
+  <PropertyGroup Condition=" ('$(Configuration)' == 'Release') and ('$(Platform)' == 'x64') ">
+    <CurrentSolutionConfigurationContents>
+      <SolutionConfiguration xmlns="">
+        <ProjectConfiguration Project="{3C8DDBE7-C59F-7290-3F55-C280DCD1AB57}">Release|x64</ProjectConfiguration>
+      </SolutionConfiguration>
+    </CurrentSolutionConfigurationContents>
+  </PropertyGroup>
+  <Target Name="ValidateSolutionConfiguration">
+    <Error Text="Den angitte løsningskonfigurasjonen $(Configuration)|$(Platform) er ugyldig. Angi en gyldig løsningskonfigurasjon ved hjelp av egenskapene Configuration og Platform (for eksempel MSBuild.exe Solution.sln /p:Configuration=Debug /p:Platform=&quot;Any CPU&quot;), eller la disse egenskapene stå tomme for å bruke standard løsningskonfigurasjon." Code="MSB4126" HelpKeyword="MSBuild.SolutionInvalidSolutionConfiguration" Condition="('$(CurrentSolutionConfigurationContents)' == '') and ('$(SkipInvalidConfigurations)' != 'true')" />
+    <Warning Text="Den angitte løsningskonfigurasjonen $(Configuration)|$(Platform) er ugyldig. Angi en gyldig løsningskonfigurasjon ved hjelp av egenskapene Configuration og Platform (for eksempel MSBuild.exe Solution.sln /p:Configuration=Debug /p:Platform=&quot;Any CPU&quot;), eller la disse egenskapene stå tomme for å bruke standard løsningskonfigurasjon." Code="MSB4126" HelpKeyword="MSBuild.SolutionInvalidSolutionConfiguration" Condition="('$(CurrentSolutionConfigurationContents)' == '') and ('$(SkipInvalidConfigurations)' == 'true')" />
+    <Message Text="Bygger løsningskonfigurasjonen $(Configuration)|$(Platform)." Condition="'$(CurrentSolutionConfigurationContents)' != ''" />
+  </Target>
+  <Target Name="ValidateToolsVersions">
+    <Error Text="Verktøyversjonen $(MSBuildToolsVersion) for løsningen støtter ikke bygging av prosjekter med en annen verktøyversjon." Code="MSB4149" HelpKeyword="MSBuild.SolutionToolsVersionDoesNotSupportProjectToolsVersion" Condition="'$(MSBuildToolsVersion)' == '2.0' and ('$(ProjectToolsVersion)' != '2.0' and '$(ProjectToolsVersion)' != '')" />
+  </Target>
+  <Target Name="usb_bindings" Condition="'$(CurrentSolutionConfigurationContents)' != ''">
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Debug|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Debug') and ('$(Platform)' == 'x64') " />
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Release|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Release') and ('$(Platform)' == 'x64') " />
+  </Target>
+  <Target Name="usb_bindings:Clean" Condition="'$(CurrentSolutionConfigurationContents)' != ''">
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Debug|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Clean="true" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Debug') and ('$(Platform)' == 'x64') " />
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Release|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Clean="true" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Release') and ('$(Platform)' == 'x64') " />
+  </Target>
+  <Target Name="usb_bindings:Rebuild" Condition="'$(CurrentSolutionConfigurationContents)' != ''">
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Debug|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Rebuild="true" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Debug') and ('$(Platform)' == 'x64') " />
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Release|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Rebuild="true" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Release') and ('$(Platform)' == 'x64') " />
+  </Target>
+  <Target Name="usb_bindings:Publish" Condition="'$(CurrentSolutionConfigurationContents)' != ''">
+    <Warning Text="VC-prosjekter støtter ikke Publish-målet." Code="MSB4076" HelpKeyword="MSBuild.SolutionVCProjectNoPublish" />
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Debug|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Debug') and ('$(Platform)' == 'x64') " />
+    <CreateProperty Value="C:\Program Files (x86)\Microsoft Visual Studio 9.0\Common7\IDE\..\..\vc\vcpackages" Condition="'$(VCBuildToolPath)' == ''">
+      <Output TaskParameter="Value" PropertyName="VCBuildToolPath" />
+    </CreateProperty>
+    <VCBuild Projects="C:\users\henningknut\node-usb\build\usb_bindings.vcproj" ToolPath="$(VCBuildToolPath)" Configuration="Release|x64" SolutionFile="C:\users\henningknut\node-usb\build\binding.sln" Override="$(VCBuildOverride)" AdditionalLibPaths="$(VCBuildAdditionalLibPaths)" AdditionalLinkLibraryPaths="$(VCBuildAdditionalLinkLibraryPaths)" UseEnvironment="$(VCBuildUseEnvironment)" UserEnvironment="$(VCBuildUserEnvironment)" AdditionalOptions="$(VCBuildAdditionalOptions)" Condition=" ('$(Configuration)' == 'Release') and ('$(Platform)' == 'x64') " />
+  </Target>
+  <Target Name="Build" Condition="'$(CurrentSolutionConfigurationContents)' != ''" Outputs="@(CollectedBuildOutput)">
+    <MSBuild Condition="@(BuildLevel0) != ''" Projects="@(BuildLevel0)" Properties="Configuration=%(Configuration); Platform=%(Platform); BuildingSolutionFile=true; CurrentSolutionConfigurationContents=$(CurrentSolutionConfigurationContents); SolutionDir=$(SolutionDir); SolutionExt=$(SolutionExt); SolutionFileName=$(SolutionFileName); SolutionName=$(SolutionName); SolutionPath=$(SolutionPath)" ToolsVersion="$(ProjectToolsVersion)" BuildInParallel="true" UnloadProjectsOnCompletion="$(UnloadProjectsOnCompletion)" UseResultsCache="$(UseResultsCache)">
+      <Output TaskParameter="TargetOutputs" ItemName="CollectedBuildOutput" />
+    </MSBuild>
+    <Message Text="Prosjektet %(SkipLevel0.Identity) er ikke merket for bygging i løsningskonfigurasjonen $(Configuration)|$(Platform)." Condition="@(SkipLevel0) != ''" />
+    <Warning Text="Prosjektkonfigurasjonen for prosjektet %(MissingConfigLevel0.Identity) er ikke angitt i løsningsfilen for løsningskonfigurasjonen $(Configuration)|$(Platform)." Code="MSB4121" HelpKeyword="MSBuild.SolutionProjectConfigurationMissing" Condition="@(MissingConfigLevel0) != ''" />
+    <CallTarget Targets="usb_bindings" RunEachTargetSeparately="true" />
+  </Target>
+  <Target Name="Clean" Condition="'$(CurrentSolutionConfigurationContents)' != ''">
+    <MSBuild Condition="@(BuildLevel0) != ''" Projects="@(BuildLevel0)" Properties="Configuration=%(Configuration); Platform=%(Platform); BuildingSolutionFile=true; CurrentSolutionConfigurationContents=$(CurrentSolutionConfigurationContents); SolutionDir=$(SolutionDir); SolutionExt=$(SolutionExt); SolutionFileName=$(SolutionFileName); SolutionName=$(SolutionName); SolutionPath=$(SolutionPath)" Targets="Clean" ToolsVersion="$(ProjectToolsVersion)" BuildInParallel="true" UnloadProjectsOnCompletion="$(UnloadProjectsOnCompletion)" UseResultsCache="$(UseResultsCache)" />
+    <Message Text="Prosjektet %(SkipLevel0.Identity) er ikke merket for bygging i løsningskonfigurasjonen $(Configuration)|$(Platform)." Condition="@(SkipLevel0) != ''" />
+    <Warning Text="Prosjektkonfigurasjonen for prosjektet %(MissingConfigLevel0.Identity) er ikke angitt i løsningsfilen for løsningskonfigurasjonen $(Configuration)|$(Platform)." Code="MSB4121" HelpKeyword="MSBuild.SolutionProjectConfigurationMissing" Condition="@(MissingConfigLevel0) != ''" />
+    <CallTarget Targets="usb_bindings:Clean" RunEachTargetSeparately="true" />
+    <Delete Files="binding.sln.cache" />
+  </Target>
+  <Target Name="Rebuild" Condition="'$(CurrentSolutionConfigurationContents)' != ''" Outputs="@(CollectedBuildOutput)">
+    <MSBuild Condition="@(BuildLevel0) != ''" Projects="@(BuildLevel0)" Properties="Configuration=%(Configuration); Platform=%(Platform); BuildingSolutionFile=true; CurrentSolutionConfigurationContents=$(CurrentSolutionConfigurationContents); SolutionDir=$(SolutionDir); SolutionExt=$(SolutionExt); SolutionFileName=$(SolutionFileName); SolutionName=$(SolutionName); SolutionPath=$(SolutionPath)" Targets="Rebuild" ToolsVersion="$(ProjectToolsVersion)" BuildInParallel="true" UnloadProjectsOnCompletion="$(UnloadProjectsOnCompletion)" UseResultsCache="$(UseResultsCache)">
+      <Output TaskParameter="TargetOutputs" ItemName="CollectedBuildOutput" />
+    </MSBuild>
+    <Message Text="Prosjektet %(SkipLevel0.Identity) er ikke merket for bygging i løsningskonfigurasjonen $(Configuration)|$(Platform)." Condition="@(SkipLevel0) != ''" />
+    <Warning Text="Prosjektkonfigurasjonen for prosjektet %(MissingConfigLevel0.Identity) er ikke angitt i løsningsfilen for løsningskonfigurasjonen $(Configuration)|$(Platform)." Code="MSB4121" HelpKeyword="MSBuild.SolutionProjectConfigurationMissing" Condition="@(MissingConfigLevel0) != ''" />
+    <CallTarget Targets="usb_bindings:Rebuild" RunEachTargetSeparately="true" />
+  </Target>
+  <Target Name="Publish" Condition="'$(CurrentSolutionConfigurationContents)' != ''">
+    <MSBuild Condition="@(BuildLevel0) != ''" Projects="@(BuildLevel0)" Properties="Configuration=%(Configuration); Platform=%(Platform); BuildingSolutionFile=true; CurrentSolutionConfigurationContents=$(CurrentSolutionConfigurationContents); SolutionDir=$(SolutionDir); SolutionExt=$(SolutionExt); SolutionFileName=$(SolutionFileName); SolutionName=$(SolutionName); SolutionPath=$(SolutionPath)" Targets="Publish" ToolsVersion="$(ProjectToolsVersion)" BuildInParallel="true" UnloadProjectsOnCompletion="$(UnloadProjectsOnCompletion)" UseResultsCache="$(UseResultsCache)" />
+    <Message Text="Prosjektet %(SkipLevel0.Identity) er ikke merket for bygging i løsningskonfigurasjonen $(Configuration)|$(Platform)." Condition="@(SkipLevel0) != ''" />
+    <Warning Text="Prosjektkonfigurasjonen for prosjektet %(MissingConfigLevel0.Identity) er ikke angitt i løsningsfilen for løsningskonfigurasjonen $(Configuration)|$(Platform)." Code="MSB4121" HelpKeyword="MSBuild.SolutionProjectConfigurationMissing" Condition="@(MissingConfigLevel0) != ''" />
+    <CallTarget Targets="usb_bindings:Publish" RunEachTargetSeparately="true" />
+  </Target>
+</Project>
