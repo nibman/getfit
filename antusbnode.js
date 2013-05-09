@@ -190,18 +190,20 @@ DeviceProfile_HRM.protype = DeviceProfile.prototype;  // Inherit properties/meth
 DeviceProfile_HRM.constructor = DeviceProfile_HRM;  // Update constructor
 
 DeviceProfile_HRM.prototype = {
-    deviceType : 0x78,
+    DEVICE_TYPE: 0x78,
+    CHANNEL_PERIOD: 8070,
+
     // Override/"property shadowing"
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
         // ANT+ Managed Network Document – Heart Rate Monitor Device Profile  , p . 9  - 4 channel configuration
 
         var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
 
-        channel.setChannelId(deviceNr, DeviceProfile_HRM.prototype.deviceType, transmissionType, false);
+        channel.setChannelId(deviceNr, DeviceProfile_HRM.prototype.DEVICE_TYPE, transmissionType, false);
 
-        channel.setChannelPeriod(8070); // Ca. 4 messages pr. second, or 1 msg. pr 246.3 ms -> max HR supported 246.3 pr/minute 
+        channel.setChannelPeriod(DeviceProfile_HRM.prototype.CHANNEL_PERIOD); // Ca. 4 messages pr. second, or 1 msg. pr 246.3 ms -> max HR supported 246.3 pr/minute 
         channel.setChannelSearchTimeout(searchTimeout);
-        channel.setChannelFrequency(57);
+        channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
 
         channel.broadCastDataParser = this.broadCastDataParser; // Called on received broadcast data
 
@@ -329,24 +331,21 @@ DeviceProfile_SDM.constructor = DeviceProfile_SDM;  // Update constructor
 
 DeviceProfile_SDM.prototype = {
 
-    deviceType: 0x7C,
+    DEVICE_TYPE: 0x7C,
 
-    channelPeriode: 8134, // 4 hz
+    CHANNEL_PERIOD: 8134, // 4 hz
 
     alternativeChannelPeriode: 16268,  // 2 Hz
-
-    frequency: ANT.prototype.ANT_FREQUENCY,
 
     // Override/"property shadowing"
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
 
         var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
 
-        channel.setChannelId(deviceNr, DeviceProfile_SDM.prototype.deviceType, transmissionType, false);
+        channel.setChannelId(deviceNr, DeviceProfile_SDM.prototype.DEVICE_TYPE, transmissionType, false);
 
-        channel.setChannelPeriod(DeviceProfile_SDM.prototype.channelPeriode); // Ca. 4 messages pr. second
+        channel.setChannelPeriod(DeviceProfile_SDM.prototype.CHANNEL_PERIOD); // Ca. 4 messages pr. second
         channel.setChannelSearchTimeout(searchTimeout);
-        console.log(DeviceProfile_SDM.prototype.frequency);
 
         channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
 
@@ -355,7 +354,7 @@ DeviceProfile_SDM.prototype = {
         channel.deviceProfile = this; // Attach deviceprofile to channel
         this.channel = channel; // Attach channel to device profile
 
-        console.log(channel);
+        //console.log(channel);
         return channel;
 
     },
@@ -572,16 +571,19 @@ DeviceProfile_ANTFS.constructor = DeviceProfile_ANTFS;  // Update constructor
 
 DeviceProfile_ANTFS.prototype = {
 
+    CHANNEL_PERIOD : 4096,
+    SEARCH_WAVEFORM : [ 0x53, 0x00 ],
+
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, searchTimeout) {
       
         // Setup channel parameters for ANT-FS
         var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANTFS);
 
         channel.setChannelId(deviceNr, deviceType, transmissionType, false);
-        channel.setChannelPeriod(4096);
+        channel.setChannelPeriod(DeviceProfile_ANTFS.prototype.CHANNEL_PERIOD);
         channel.setChannelSearchTimeout(ANT.prototype.INFINITE_SEARCH);
         channel.setChannelFrequency(ANT.prototype.ANTFS_FREQUENCY);
-        channel.setChannelSearchWaveform([0x53, 0x00]);
+        channel.setChannelSearchWaveform(DeviceProfile_ANTFS.prototype.SEARCH_WAVEFORM);
 
         channel.broadCastDataParser = this.broadCastDataParser;
 
@@ -607,15 +609,15 @@ DeviceProfile_SPDCAD.constructor = DeviceProfile_SPDCAD;  // Update constructor
 
 DeviceProfile_SPDCAD.prototype = {
 
-    deviceType: 0x79, // 121
-    channelPeriod: 8086,
+    DEVICE_TYPE: 0x79, // 121
+    CHANNEL_PERIOD: 8086,
 
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
         
         var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
 
-        channel.setChannelId(deviceNr, DeviceProfile_SPDCAD.prototype.deviceType, transmissionType, false);
-        channel.setChannelPeriod(DeviceProfile_SPDCAD.prototype.channelPeriod); // ca. 4.05 Hz
+        channel.setChannelId(deviceNr, DeviceProfile_SPDCAD.prototype.DEVICE_TYPE, transmissionType, false);
+        channel.setChannelPeriod(DeviceProfile_SPDCAD.prototype.CHANNEL_PERIOD); // ca. 4.05 Hz
         channel.setChannelSearchTimeout(searchTimeout);
         channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
        
