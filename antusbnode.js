@@ -684,6 +684,10 @@ function Node() {
         });
     });
 
+    this.wss.on('error', function (error) {
+        console.log(Date.now + "WebsocketServer: Error ", error);
+    });
+
 
     function success() {
         console.log(self.ANT);
@@ -724,13 +728,14 @@ Node.prototype = {
          }
          
          var len = self.wss.clients.length;
-         console.log("Length of clients", len);
+         //console.log("Length of clients", len);
          for (var clientNr = 0; clientNr < len; clientNr++) {
              if (typeof self.wss.clients !== "undefined" && self.wss.clients[clientNr] !== "undefined") // Just to make sure we have clientTracking and client is present
              {
-                 console.log("Sending data to client nr. ", clientNr, "data:",data);
+                 //console.log("Sending data to client nr. ", clientNr, "data:",data);
                  self.wss.clients[clientNr].send(data);
-             }
+             } else
+                 console.warn("Found no clients to send data to, is websocket server operative?");
          }
      },
 
@@ -840,6 +845,10 @@ Node.prototype = {
        process.on('SIGINT', function () {
            // console.log("\nSignal interrut event SIGINT (Ctrl+C)");
            //self.ANT.inTransfer.cancel(); // Gracefull termination of possible pending transfer on in endpoint
+           if (typeof self.wss !== "undefined") {
+               console.log("Closing websocket server, terminating connections to clients");
+               self.wss.close();
+           }
            self.ANT.exit();
        });
 
