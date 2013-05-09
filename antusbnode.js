@@ -162,12 +162,13 @@ function parseClientBeacon(data) {
 
 
 // Based on https://developer.mozilla.org/en-US/docs/JavaScript/Introduction_to_Object-Oriented_JavaScript
-function DeviceProfile() {
+function DeviceProfile(nodeInstance) {
+    this.nodeInstance = nodeInstance;
 }
 
 DeviceProfile.prototype = {
 
-    deviceType: 0x00,
+    DEVICE_TYPE: 0x00,
 
     getSlaveChannelConfiguration : function () {
         return "Not defined";
@@ -179,9 +180,10 @@ DeviceProfile.prototype = {
 }
 
 
-function DeviceProfile_HRM()
+function DeviceProfile_HRM(nodeInstance)
 {
-    DeviceProfile.call(this); // Call parent
+    DeviceProfile.call(this, nodeInstance); // Call parent
+    this.nodeInstance = nodeInstance;
    
 }
 
@@ -207,6 +209,7 @@ DeviceProfile_HRM.prototype = {
 
         channel.broadCastDataParser = this.broadCastDataParser; // Called on received broadcast data
 
+        channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         channel.deviceProfile = this; // Attach deviceprofile to channel
         this.channel = channel; // Attach channel to device profile
 
@@ -261,7 +264,10 @@ DeviceProfile_HRM.prototype = {
 
                 if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {  // Filter out identical messages
                     this.previousHeartBeatEventTime = page.heartBeatEventTime;
-                    console.log("HR " + page.computedHeartRate + " heart beat count " + page.heartBeatCount + " RR " + page.RRInterval);
+                    var msg = "HR " + page.computedHeartRate + " heart beat count " + page.heartBeatCount + " RR " + page.RRInterval;
+                    console.log(msg);
+                    this.nodeInstance.broadCast(msg); // Send to all connected clients
+
                     if (this.timeout) {
                         clearTimeout(this.timeout);
                         //console.log("After clearing", this.timeout);
@@ -320,9 +326,10 @@ DeviceProfile_HRM.prototype = {
 };
 
 
-function DeviceProfile_SDM()
+function DeviceProfile_SDM(nodeInstance)
 {
     DeviceProfile.call(this); // Call parent
+    this.nodeInstance = nodeInstance;
 }
 
 DeviceProfile_SDM.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -351,6 +358,7 @@ DeviceProfile_SDM.prototype = {
 
         channel.broadCastDataParser = this.broadCastDataParser; // Called on received broadcast data
 
+        channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         channel.deviceProfile = this; // Attach deviceprofile to channel
         this.channel = channel; // Attach channel to device profile
 
@@ -561,8 +569,9 @@ DeviceProfile_SDM.prototype = {
 
 
 
-function DeviceProfile_ANTFS() {
+function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
+    this.nodeInstance = nodeInstance;
 }
 
 DeviceProfile_ANTFS.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -587,6 +596,7 @@ DeviceProfile_ANTFS.prototype = {
 
         channel.broadCastDataParser = this.broadCastDataParser;
 
+        channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         channel.deviceProfile = this; // Attach deviceprofile to channel
         this.channel = channel; // Attach channel to device profile
 
@@ -621,6 +631,10 @@ DeviceProfile_SPDCAD.prototype = {
         channel.setChannelSearchTimeout(searchTimeout);
         channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
        
+        channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
+        channel.deviceProfile = this; // Attach deviceprofile to channel
+        this.channel = channel; // Attach channel to device profile
+
         channel.broadCastDataParser = this.broadCastDataParser;
 
         return channel;
@@ -643,10 +657,33 @@ function Node() {
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
     this.ANT = new ANT(4047, 4104);
 
-    this.deviceProfile_HRM = new DeviceProfile_HRM();
-    this.deviceProfile_SDM = new DeviceProfile_SDM();
-    this.deviceProfile_ANTFS = new DeviceProfile_ANTFS();
-    this.deviceProfile_SPDCAD = new DeviceProfile_SPDCAD();
+    this.deviceProfile_HRM = new DeviceProfile_HRM(this);
+    this.deviceProfile_SDM = new DeviceProfile_SDM(this);
+    this.deviceProfile_ANTFS = new DeviceProfile_ANTFS(this);
+    this.deviceProfile_SPDCAD = new DeviceProfile_SPDCAD(this);
+
+    // Start websocket server
+
+    var WebSocketServer = require('ws').Server;
+
+    // Client tracking keeps track of websocket server clients in "clients" property -> removed on 'close'
+    this.wss = new WebSocketServer({ host: Node.prototype.WEBSOCKET_HOST, port: Node.prototype.WEBSOCKET_PORT, clientTracking : true });
+
+    this.wss.on('listening', function () {
+        console.log("Websocket server listening on "+Node.prototype.WEBSOCKET_HOST+":"+Node.prototype.WEBSOCKET_PORT);
+    });
+
+    this.wss.on('connection', function (ws) {
+        console.log(Date.now() + " New client connected - will receive broadcast data");
+       // console.log(ws);
+        //self.websockets.push(ws); // Keeps track of all incoming websocket clients
+
+        ws.on('message', function (message) {
+            console.log(Date.now()+' Received: %s', message);
+        //    ws.send('something');
+        });
+    });
+
 
     function success() {
         console.log(self.ANT);
@@ -666,13 +703,36 @@ function Node() {
 
 Node.prototype = {
 
+    WEBSOCKET_HOST : 'localhost',
+    WEBSOCKET_PORT : 8093,
+
      //DEFAULT_CHANNEL_FREQUENCY : 50,
      //ALTERNATIVE_CHANNEL_FREQUENCY: 20,
      //DEFAULT_CHANNEL_PERIOD : 4096,
 
    //addChannel: function (channel) {
    //     this.channels.push(channel);
-   // },
+    // },
+
+    broadCast :  // Broadcast data to all clients
+     function (data) {
+         var self = this;
+
+         if (typeof self.wss === "undefined") {
+             console.warn("Cannot broadcast data, no websocket server available");
+             return;
+         }
+         
+         var len = self.wss.clients.length;
+         console.log("Length of clients", len);
+         for (var clientNr = 0; clientNr < len; clientNr++) {
+             if (typeof self.wss.clients !== "undefined" && self.wss.clients[clientNr] !== "undefined") // Just to make sure we have clientTracking and client is present
+             {
+                 console.log("Sending data to client nr. ", clientNr, "data:",data);
+                 self.wss.clients[clientNr].send(data);
+             }
+         }
+     },
 
    stop: function () {
        var self = this;
