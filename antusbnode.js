@@ -436,7 +436,11 @@ DeviceProfile_ANTFS.prototype = {
         LINK_LAYER: 0x00,
         AUTHENTICATION_LAYER: 0x01,
         TRANSPORT_LAYER: 0x02,
-        BUSY: 0x03
+        BUSY: 0x03,
+        0x00: "LINK State",
+        0x01: "AUTHENTICATION State",
+        0x02: "TRANSPORT State",
+        0x03: "BUSY State"
     },
 
     //var NETWORK = {
@@ -474,6 +478,16 @@ DeviceProfile_ANTFS.prototype = {
         Hz8: 0x04  // 8 Hz
     },
 
+    AUTHENTICATION_TYPE : {
+        PASS_THROUGH: 0x00,
+        PAIRING_ONLY: 0x02,
+        PASSKEY_AND_PAIRING_ONLY : 0x03,
+        0x00: "Pass-through supported (pairing & passkey optional)",
+        0x02: "Pairing only",
+        0x03: "Passkey and Pairing only"
+    },
+
+
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, searchTimeout) {
       
         // Setup channel parameters for ANT-FS
@@ -504,35 +518,33 @@ DeviceProfile_ANTFS.prototype = {
     parseClientBeacon: function (data) {
         var
             beaconInfo = {
-                raw: {
                     status1: data[5],
                     status2: data[6],
                     authenticationType: data[7],
-                }
             };
 
-        beaconInfo.dataAvailable = beaconInfo.raw.status1 & 0x20 ? true : false // Bit 5
-        beaconInfo.uploadEnabled = beaconInfo.raw.status1 & 0x10 ? true : false, // Bit 4
-        beaconInfo.pairingEnabled = beaconInfo.raw.status1 & 0x8 ? true : false, // Bit 3
-        beaconInfo.beaconChannelPeriod = beaconInfo.raw.status1 & 0x7,// Bit 2-0
+        beaconInfo.dataAvailable = beaconInfo.status1 & 0x20 ? true : false // Bit 5
+        beaconInfo.uploadEnabled = beaconInfo.status1 & 0x10 ? true : false, // Bit 4
+        beaconInfo.pairingEnabled = beaconInfo.status1 & 0x8 ? true : false, // Bit 3
+        beaconInfo.beaconChannelPeriod = beaconInfo.status1 & 0x7,// Bit 2-0
 
-        beaconInfo.clientDeviceState = beaconInfo.raw.status2 & 0xFF;
+        beaconInfo.clientDeviceState = beaconInfo.status2 & 0xFF;
 
         if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER || beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER)
-            beaconInfo.raw.hostSerialNumber = data.readUInt32LE(8);
+            beaconInfo.hostSerialNumber = data.readUInt32LE(8);
         else if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
-            beaconInfo.raw.deviceType = data.readUInt16LE(8);
-            beaconInfo.raw.manufacturerID = data.readUInt16LE(10);
+            beaconInfo.deviceType = data.readUInt16LE(8);
+            beaconInfo.manufacturerID = data.readUInt16LE(10);
         }
 
         function parseStatus1() {
             var beaconChannelPeriodFriendly = {
-                0x00: "0.5 Hz (65535)",
-                0x01: "1 Hz (32768)",
-                0x02: "2 Hz (16384)",
-                0x03: "4 Hz (8192)",
-                0x04: "8 Hz (4096)",
-                0xFF: "Match established channel period (broadcast ANT-FS only)"
+                0x00: "0.5 Hz (65535)", // 000
+                0x01: "1 Hz (32768)",   // 001
+                0x02: "2 Hz (16384)",   // 010
+                0x03: "4 Hz (8192)",    // 011
+                0x04: "8 Hz (4096)",    // 100
+                0x07: "Match established channel period (broadcast ANT-FS only)" // 111
             };
 
             status1Str = "ANT-FS Beacon ";
@@ -558,43 +570,37 @@ DeviceProfile_ANTFS.prototype = {
 
         }
 
-        function parseStatus2() {
-            var clientDeviceStateFriendly = {
-                0x00: "LINK State",
-                0x01: "AUTHENTICATION State",
-                0x02: "TRANSPORT State",
-                0x03: "BUSY State"
-            }, status2Str;
-
-
-            status2Str = clientDeviceStateFriendly[beaconInfo.raw.status2 & 0xFF];
-
-            return status2Str;
-        }
-
-        function parseAuthenticationType() {
-            var authTypeFriendly = {
-                0x00: "Pass-through supported (pairing & passkey optional)",
-                0x02: "Pairing only",
-                0x03: "Passkey and Pairing only"
-            };
-
-            return authTypeFriendly[beaconInfo.raw.authenticationType];
-        }
-
         beaconInfo.toString = function () {
 
             if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER)
-                return parseStatus1() + " " + parseStatus2() + " Device type " + beaconInfo.raw.deviceType + " Manuf. ID " + beaconInfo.raw.manufacturerID + " " + parseAuthenticationType();
+                return parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Device type " + beaconInfo.deviceType + " Manuf. ID " + beaconInfo.manufacturerID + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
             else
-                return parseStatus1() + " " + parseStatus2() + " Host SN. " + beaconInfo.raw.hostSerialNumber + " " + parseAuthenticationType();
+                return parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Host SN. " + beaconInfo.hostSerialNumber + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
         }
 
         return beaconInfo;
     },
 
     broadCastDataParser: function (data) {
-        console.log(Date.now() + " " + this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data).toString());
+        var beaconID = data[4],
+            beacon;
+        // Check for valid beacon ID 0x43 , p. 45 ANT-FS Technical Spec.
+
+        if (beaconID !== DeviceProfile_ANTFS.prototype.BEACON_ID)
+            console.log("Expected beacon ID ", DeviceProfile_ANTFS.prototype.BEACON_ID, " but got ", beaconID, " not a valid beacon broadcast. ", data);
+        else {
+            beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data);
+            console.log(Date.now() + " " + beacon.toString());
+
+            switch (beacon.authenticationType) {
+                case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
+                    console.log("Proceeding to authentication....");
+                    break;
+                default:
+                    console.log("Authentication not implemented");
+                    break;
+            }
+        }
     }
 };
 
