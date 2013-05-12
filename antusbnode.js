@@ -2,66 +2,7 @@
 
 var usb = require('./usb');
 
-var ANTFS_BEACON_ID = 0x43;
-
-var ANTFS_STATE = {
-    LINK_LAYER: 0x00,
-    AUTHENTICATION_LAYER: 0x01,
-    TRANSPORT_LAYER: 0x02,
-    BUSY : 0x03
-};
-
-var NETWORK = {
-    public : 0x00
-};
-
-// ANTFS TS p. 50 - commands are send either as acknowledged data or bursts depending on payload size
-// COMMAND format : p. 49 ANTFS Command/Response ID = 0x44, Command, Parameters ...
-var ANTFS_COMMAND_ID = {
-    COMMAND_RESPONSE_ID: 0x44,
-    link: 0x02,
-    disconnect: 0x03,
-    authenticate: 0x04,
-    ping: 0x05,
-    download: 0x09,
-    upload: 0x0A,
-    erase: 0x0B,
-    upload_data: 0x0C
-};
-
-// ANTFS TS p. 51
-var ANTFS_RESPONSE_ID = {
-    authenticate: 0x84,
-    download: 0x89,
-    upload: 0x8A,
-    erase: 0x8b,
-    upload_data: 0x8c
-};
-
-var BEACON_CHANNEL_PERIOD = {
-    HzHalf: 0x00, // 0.5 Hz
-    Hz1: 0x01,
-    Hz2: 0x02,
-    Hz4: 0x03,
-    Hz8: 0x04  // 8 Hz
-}
-
-//var ANTFS_HOST = {
-//    channel: {
-//        number : DEFAULT_CHANNEL_NR,
-
-//    },
-//    state: ANTFS_STATE.LINK_LAYER,
-    
-//};
-
 var log = true;
-
-
-
-
-
-
 
 // Based on https://developer.mozilla.org/en-US/docs/JavaScript/Introduction_to_Object-Oriented_JavaScript
 function DeviceProfile(nodeInstance) {
@@ -80,7 +21,6 @@ DeviceProfile.prototype = {
         return "Not defined";
     }
 }
-
 
 function DeviceProfile_HRM(nodeInstance)
 {
@@ -248,7 +188,7 @@ DeviceProfile_SDM.prototype = {
 
     CHANNEL_PERIOD: 8134, // 4 hz
 
-    alternativeChannelPeriode: 16268,  // 2 Hz
+    ALTERNATIVE_CHANNEL_PERIOD: 16268,  // 2 Hz
 
     // Override/"property shadowing"
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
@@ -486,8 +426,53 @@ DeviceProfile_ANTFS.constructor = DeviceProfile_ANTFS;  // Update constructor
 
 DeviceProfile_ANTFS.prototype = {
 
-    CHANNEL_PERIOD : 4096,
-    SEARCH_WAVEFORM : [ 0x53, 0x00 ],
+    CHANNEL_PERIOD: 4096,
+
+    SEARCH_WAVEFORM: [0x53, 0x00],
+
+    BEACON_ID: 0x43,
+
+    STATE: {
+        LINK_LAYER: 0x00,
+        AUTHENTICATION_LAYER: 0x01,
+        TRANSPORT_LAYER: 0x02,
+        BUSY: 0x03
+    },
+
+    //var NETWORK = {
+    //    public : 0x00
+    //};
+
+    // ANTFS TS p. 50 - commands are send either as acknowledged data or bursts depending on payload size
+    // COMMAND format : p. 49 ANTFS Command/Response ID = 0x44, Command, Parameters ...
+    COMMAND_ID: {
+        COMMAND_RESPONSE_ID: 0x44,
+        link: 0x02,
+        disconnect: 0x03,
+        authenticate: 0x04,
+        ping: 0x05,
+        download: 0x09,
+        upload: 0x0A,
+        erase: 0x0B,
+        upload_data: 0x0C
+    },
+
+    // ANTFS TS p. 51
+    RESPONSE_ID: {
+        authenticate: 0x84,
+        download: 0x89,
+        upload: 0x8A,
+        erase: 0x8b,
+        upload_data: 0x8c
+    },
+
+    BEACON_CHANNEL_PERIOD: {
+        HzHalf: 0x00, // 0.5 Hz
+        Hz1: 0x01,
+        Hz2: 0x02,
+        Hz4: 0x03,
+        Hz8: 0x04  // 8 Hz
+    },
 
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, searchTimeout) {
       
@@ -511,102 +496,102 @@ DeviceProfile_ANTFS.prototype = {
     },
 
     
-// It seems like the Garmin 910XT ANTFS client open the channel for about 1.75 sec. each 20 seconds. At 8Hz message rate we can expected max 16 beacon messages. -> maybe to conserve power
-// The generates a series of EVENT_RX_FAIL which eventually leads to EVENT_RX_FAIL_GO_TO_SEARCH -> host expected messages to arrive, but
-// client (910XT) has closed the channel, fallback for host is to return to search mode again
-// I suppose that when authentication succeeds and we enter transport layer state, the client will step up its game and provide continous stream of data
-// ANT-FS Technical specification p. 40 s. 9.1 Beacon "Client beacon rates will be application dependent. A trade off is made between power and latecy"
- parseClientBeacon : function (data) {
-    var
-        beaconInfo = {
-            raw: {
-                status1: data[5],
-                status2: data[6],
-                authenticationType: data[7],
-            }
-        };
+    // It seems like the Garmin 910XT ANTFS client open the channel for about 1.75 sec. each 20 seconds. At 8Hz message rate we can expected max 16 beacon messages. -> maybe to conserve power
+    // The generates a series of EVENT_RX_FAIL which eventually leads to EVENT_RX_FAIL_GO_TO_SEARCH -> host expected messages to arrive, but
+    // client (910XT) has closed the channel, fallback for host is to return to search mode again
+    // I suppose that when authentication succeeds and we enter transport layer state, the client will step up its game and provide continous stream of data
+    // ANT-FS Technical specification p. 40 s. 9.1 Beacon "Client beacon rates will be application dependent. A trade off is made between power and latecy"
+    parseClientBeacon: function (data) {
+        var
+            beaconInfo = {
+                raw: {
+                    status1: data[5],
+                    status2: data[6],
+                    authenticationType: data[7],
+                }
+            };
 
-    beaconInfo.dataAvailable = beaconInfo.raw.status1 & 0x20 ? true : false // Bit 5
-    beaconInfo.uploadEnabled = beaconInfo.raw.status1 & 0x10 ? true : false, // Bit 4
-    beaconInfo.pairingEnabled = beaconInfo.raw.status1 & 0x8 ? true : false, // Bit 3
-    beaconInfo.beaconChannelPeriod = beaconInfo.raw.status1 & 0x7,// Bit 2-0
+        beaconInfo.dataAvailable = beaconInfo.raw.status1 & 0x20 ? true : false // Bit 5
+        beaconInfo.uploadEnabled = beaconInfo.raw.status1 & 0x10 ? true : false, // Bit 4
+        beaconInfo.pairingEnabled = beaconInfo.raw.status1 & 0x8 ? true : false, // Bit 3
+        beaconInfo.beaconChannelPeriod = beaconInfo.raw.status1 & 0x7,// Bit 2-0
 
-    beaconInfo.clientDeviceState = beaconInfo.raw.status2 & 0xFF;
+        beaconInfo.clientDeviceState = beaconInfo.raw.status2 & 0xFF;
 
-    if (beaconInfo.clientDeviceState === ANTFS_STATE.AUTHENTICATION_LAYER || beaconInfo.clientDeviceState === ANTFS_STATE.TRANSPORT_LAYER)
-        beaconInfo.raw.hostSerialNumber = data.readUInt32LE(8);
-    else if (beaconInfo.clientDeviceState === ANTFS_STATE.LINK_LAYER) {
-        beaconInfo.raw.deviceType = data.readUInt16LE(8);
-        beaconInfo.raw.manufacturerID = data.readUInt16LE(10);
-    }
+        if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER || beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER)
+            beaconInfo.raw.hostSerialNumber = data.readUInt32LE(8);
+        else if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
+            beaconInfo.raw.deviceType = data.readUInt16LE(8);
+            beaconInfo.raw.manufacturerID = data.readUInt16LE(10);
+        }
 
-    function parseStatus1() {
-        var beaconChannelPeriodFriendly = {
-            0x00: "0.5 Hz (65535)",
-            0x01: "1 Hz (32768)",
-            0x02: "2 Hz (16384)",
-            0x03: "4 Hz (8192)",
-            0x04: "8 Hz (4096)",
-            0xFF: "Match established channel period (broadcast ANT-FS only)"
-        };
+        function parseStatus1() {
+            var beaconChannelPeriodFriendly = {
+                0x00: "0.5 Hz (65535)",
+                0x01: "1 Hz (32768)",
+                0x02: "2 Hz (16384)",
+                0x03: "4 Hz (8192)",
+                0x04: "8 Hz (4096)",
+                0xFF: "Match established channel period (broadcast ANT-FS only)"
+            };
 
-        status1Str = "ANT-FS Beacon "; 
+            status1Str = "ANT-FS Beacon ";
 
-        if (beaconInfo.dataAvailable)
-            status1Str += "+Data ";
-        else
-            status1Str += "-Data. ";
+            if (beaconInfo.dataAvailable)
+                status1Str += "+Data ";
+            else
+                status1Str += "-Data. ";
 
-        if (beaconInfo.uploadEnabled)
-            status1Str += "+Upload ";
-        else
-            status1Str += "-Upload ";
+            if (beaconInfo.uploadEnabled)
+                status1Str += "+Upload ";
+            else
+                status1Str += "-Upload ";
 
-        if (beaconInfo.pairingEnabled)
-            status1Str += "+Pairing ";
-        else
-            status1Str += "-Pairing ";
+            if (beaconInfo.pairingEnabled)
+                status1Str += "+Pairing ";
+            else
+                status1Str += "-Pairing ";
 
-        status1Str += beaconChannelPeriodFriendly[beaconInfo.beaconChannelPeriod];
+            status1Str += beaconChannelPeriodFriendly[beaconInfo.beaconChannelPeriod];
 
-        return status1Str;
-        
-    }
+            return status1Str;
 
-    function parseStatus2() {
-        var clientDeviceStateFriendly = {
-            0x00: "LINK State",
-            0x01: "AUTHENTICATION State",
-            0x02: "TRANSPORT State",
-            0x03: "BUSY State"
-        }, status2Str;
+        }
 
-       
-        status2Str = clientDeviceStateFriendly[beaconInfo.raw.status2 & 0xFF];
+        function parseStatus2() {
+            var clientDeviceStateFriendly = {
+                0x00: "LINK State",
+                0x01: "AUTHENTICATION State",
+                0x02: "TRANSPORT State",
+                0x03: "BUSY State"
+            }, status2Str;
 
-        return status2Str;
-    }
 
-    function parseAuthenticationType() {
-        var authTypeFriendly = {
-            0x00: "Pass-through supported (pairing & passkey optional)",
-            0x02: "Pairing only",
-            0x03: "Passkey and Pairing only"
-        };
+            status2Str = clientDeviceStateFriendly[beaconInfo.raw.status2 & 0xFF];
 
-        return authTypeFriendly[beaconInfo.raw.authenticationType];
-    }
+            return status2Str;
+        }
 
-    beaconInfo.toString = function () {
-     
-        if (beaconInfo.clientDeviceState === ANTFS_STATE.LINK_LAYER)
-            return parseStatus1() + " " + parseStatus2() + " Device type " + beaconInfo.raw.deviceType+ " Manuf. ID "+beaconInfo.raw.manufacturerID+" "+parseAuthenticationType();
-        else
-            return parseStatus1() + " " + parseStatus2() + " Host SN. " + beaconInfo.raw.hostSerialNumber + " " + parseAuthenticationType();
-    }
+        function parseAuthenticationType() {
+            var authTypeFriendly = {
+                0x00: "Pass-through supported (pairing & passkey optional)",
+                0x02: "Pairing only",
+                0x03: "Passkey and Pairing only"
+            };
 
-    return beaconInfo;
-},
+            return authTypeFriendly[beaconInfo.raw.authenticationType];
+        }
+
+        beaconInfo.toString = function () {
+
+            if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER)
+                return parseStatus1() + " " + parseStatus2() + " Device type " + beaconInfo.raw.deviceType + " Manuf. ID " + beaconInfo.raw.manufacturerID + " " + parseAuthenticationType();
+            else
+                return parseStatus1() + " " + parseStatus2() + " Host SN. " + beaconInfo.raw.hostSerialNumber + " " + parseAuthenticationType();
+        }
+
+        return beaconInfo;
+    },
 
     broadCastDataParser: function (data) {
         console.log(Date.now() + " " + this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data).toString());
@@ -656,8 +641,6 @@ function Node() {
      self.heartBeat = 0;
     self.heartBeatIntervalID =  setInterval(self.beat, 60000*60*24); // 1 "beat" each day 
    
-
-   // this.channels = [];
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
     this.ANT = new ANT(4047, 4104);
 
@@ -666,35 +649,8 @@ function Node() {
     this.deviceProfile_ANTFS = new DeviceProfile_ANTFS(this);
     this.deviceProfile_SPDCAD = new DeviceProfile_SPDCAD(this);
 
-    // Start websocket server
-
-    var WebSocketServer = require('ws').Server;
-
-    // Client tracking keeps track of websocket server clients in "clients" property -> removed on 'close'
-    this.wss = new WebSocketServer({ host: Node.prototype.WEBSOCKET_HOST, port: Node.prototype.WEBSOCKET_PORT, clientTracking : true });
-
-    this.wss.on('listening', function () {
-        console.log(Date.now() + " WebsocketServer: listening on " + Node.prototype.WEBSOCKET_HOST + ":" + Node.prototype.WEBSOCKET_PORT);
-    });
-
-    this.wss.on('connection', function (ws) {
-        console.log(Date.now() + " WebsocketServer: New client connected - will receive broadcast data");
-       // console.log(ws);
-        //self.websockets.push(ws); // Keeps track of all incoming websocket clients
-
-        ws.on('message', function (message) {
-            console.log(Date.now()+' Received: %s', message);
-        //    ws.send('something');
-        });
-    });
-
-    this.wss.on('error', function (error) {
-        console.log(Date.now() + "WebsocketServer: Error ", error);
-    });
-
-
     function success() {
-        console.log(self.ANT);
+       // console.log(self.ANT);
         
         //self.channels[1] = self.getDeviceProfile_HRM(1, 0, 0, 0, INFINITE_SEARCH, true);
         //console.log(JSON.stringify(self.getDeviceProfile_HRM(1,0,0,0,INFINITE_SEARCH,true)));
@@ -704,7 +660,6 @@ function Node() {
     function error() {
         self.stop();
     }
-
  
     self.ANT.init(error, success);
 }
@@ -713,14 +668,6 @@ Node.prototype = {
 
     WEBSOCKET_HOST : 'localhost',
     WEBSOCKET_PORT : 8093,
-
-     //DEFAULT_CHANNEL_FREQUENCY : 50,
-     //ALTERNATIVE_CHANNEL_FREQUENCY: 20,
-     //DEFAULT_CHANNEL_PERIOD : 4096,
-
-   //addChannel: function (channel) {
-   //     this.channels.push(channel);
-    // },
 
     broadCast :  // Broadcast data to all clients
      function (data) {
@@ -754,40 +701,6 @@ Node.prototype = {
       // console.log("HB");
         self.heartBeat++;
    },
-
-   //getDeviceProfile_ANTFS: function (networkNr,channelNr,deviceNr,deviceType,transmissionType,broadCastDataParser)
-   //{
-   //    // Setup channel parameters for ANT-FS
-   //    var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANTFS);
-
-   //    channel.setChannelId(deviceNr, deviceType, transmissionType,false); 
-   //    channel.setChannelPeriod(4096);
-   //    channel.setChannelSearchTimeout(ANT.prototype.INFINITE_SEARCH);
-   //    channel.setChannelFrequency(50);
-   //    channel.setChannelSearchWaveform([0x53, 0x00]);
-
-   //    channel.broadCastDataParser= broadCastDataParser;
-
-   //    return channel;
-   //},
-
-   // // ANT+ Managed Network Document – Heart Rate Monitor Device Profile  , p . 9  - 4 channel configuration
-   //getDeviceProfile_HRM : function (networkNr,channelNr,deviceNr,deviceType,transmissionType,searchTimeout,broadCastDataParser)
-   //{
-      
-   //    var channel = new Channel(channelNr,Channel.prototype.CHANNEL_TYPE.receive_channel,networkNr, Network.prototype.NETWORK_KEY.ANT);
-      
-   //     channel.setChannelId(deviceNr, deviceType, transmissionType,false);
-
-   //    channel.setChannelPeriod(8070); // Ca. 4 messages pr. second
-   //    channel.setChannelSearchTimeout(searchTimeout);
-   //    channel.setChannelFrequency(57);
-
-   //    channel.broadCastDataParser = broadCastDataParser; // Called on received broadcast data
-
-   //    return channel;
-
-   //},
 
    router : function ()
    {
@@ -909,6 +822,33 @@ Node.prototype = {
            //     });
            // }, 500); // Allow 500ms after reset before proceeding
            
+
+       // Start websocket server
+
+       var WebSocketServer = require('ws').Server;
+
+       // Client tracking keeps track of websocket server clients in "clients" property -> removed on 'close'
+       self.wss = new WebSocketServer({ host: Node.prototype.WEBSOCKET_HOST, port: Node.prototype.WEBSOCKET_PORT, clientTracking: true });
+
+       self.wss.on('listening', function () {
+           console.log(Date.now() + " WebsocketServer: listening on " + Node.prototype.WEBSOCKET_HOST + ":" + Node.prototype.WEBSOCKET_PORT);
+       });
+
+       self.wss.on('connection', function (ws) {
+           console.log(Date.now() + " WebsocketServer: New client connected - will receive broadcast data");
+           // console.log(ws);
+           //self.websockets.push(ws); // Keeps track of all incoming websocket clients
+
+           ws.on('message', function (message) {
+               console.log(Date.now() + ' Received: %s', message);
+               //    ws.send('something');
+           });
+       });
+
+       self.wss.on('error', function (error) {
+           console.log(Date.now() + "WebsocketServer: Error ", error);
+       });
+
        
     },
 
@@ -970,7 +910,7 @@ Node.prototype = {
                         if (data.length > 5)
                             beaconId = data[4];
 
-                        if (msgId === ANT_MESSAGE.broadcast_data.id && beaconId === ANTFS_BEACON_ID) { // ANTFS Beacon
+                        if (msgId === ANT_MESSAGE.broadcast_data.id && beaconId === DeviceProfile_ANTFS.prototype.BEACON_ID) { // ANTFS Beacon
 
                             console.log(data);
 
@@ -1163,8 +1103,8 @@ Channel.prototype = {
     function ANTFSCOMMAND_Link(channelFreq, channelPeriod, hostSerialNumber) {
         var payload = new Buffer(8);
    
-        payload[0] = ANTFS_COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
-        payload[1] = ANTFS_COMMAND_ID.link; 
+        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
+        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.link;
         payload[2] = channelFreq;    // Offset from 2400 Mhz
         payload[3] = channelPeriod; // 0x04 = 8 Hz
         payload.writeUInt32LE(hostSerialNumber, 4);
