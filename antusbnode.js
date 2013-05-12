@@ -343,7 +343,6 @@ DeviceProfile_SDM.prototype = {
 
                 console.log(msg);
 
-
                 break;
 
 
@@ -451,14 +450,14 @@ DeviceProfile_ANTFS.prototype = {
     // COMMAND format : p. 49 ANTFS Command/Response ID = 0x44, Command, Parameters ...
     COMMAND_ID: {
         COMMAND_RESPONSE_ID: 0x44,
-        link: 0x02,
-        disconnect: 0x03,
-        authenticate: 0x04,
-        ping: 0x05,
-        download: 0x09,
-        upload: 0x0A,
-        erase: 0x0B,
-        upload_data: 0x0C
+        LINK: 0x02,
+        DISCONNECT: 0x03,
+        AUTHENTICATE: 0x04,
+        PING: 0x05,
+        DOWNLOAD: 0x09,
+        UPLOAD: 0x0A,
+        ERASE: 0x0B,
+        UPLOAD_DATA: 0x0C
     },
 
     // ANTFS TS p. 51
@@ -475,7 +474,13 @@ DeviceProfile_ANTFS.prototype = {
         Hz1: 0x01,
         Hz2: 0x02,
         Hz4: 0x03,
-        Hz8: 0x04  // 8 Hz
+        Hz8: 0x04 , // 8 Hz
+        0x00: "0.5 Hz (65535)", // 000
+        0x01: "1 Hz (32768)",   // 001
+        0x02: "2 Hz (16384)",   // 010
+        0x03: "4 Hz (8192)",    // 011
+        0x04: "8 Hz (4096)",    // 100
+        0x07: "Match established channel period (broadcast ANT-FS only)" // 111
     },
 
     AUTHENTICATION_TYPE : {
@@ -486,7 +491,6 @@ DeviceProfile_ANTFS.prototype = {
         0x02: "Pairing only",
         0x03: "Passkey and Pairing only"
     },
-
 
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, searchTimeout) {
       
@@ -508,7 +512,6 @@ DeviceProfile_ANTFS.prototype = {
         return channel;
 
     },
-
     
     // It seems like the Garmin 910XT ANTFS client open the channel for about 1.75 sec. each 20 seconds. At 8Hz message rate we can expected max 16 beacon messages. -> maybe to conserve power
     // The generates a series of EVENT_RX_FAIL which eventually leads to EVENT_RX_FAIL_GO_TO_SEARCH -> host expected messages to arrive, but
@@ -538,15 +541,7 @@ DeviceProfile_ANTFS.prototype = {
         }
 
         function parseStatus1() {
-            var beaconChannelPeriodFriendly = {
-                0x00: "0.5 Hz (65535)", // 000
-                0x01: "1 Hz (32768)",   // 001
-                0x02: "2 Hz (16384)",   // 010
-                0x03: "4 Hz (8192)",    // 011
-                0x04: "8 Hz (4096)",    // 100
-                0x07: "Match established channel period (broadcast ANT-FS only)" // 111
-            };
-
+           
             status1Str = "ANT-FS Beacon ";
 
             if (beaconInfo.dataAvailable)
@@ -564,7 +559,7 @@ DeviceProfile_ANTFS.prototype = {
             else
                 status1Str += "-Pairing ";
 
-            status1Str += beaconChannelPeriodFriendly[beaconInfo.beaconChannelPeriod];
+            status1Str +=  DeviceProfile_ANTFS.prototype.BEACON_CHANNEL_PERIOD[beaconInfo.beaconChannelPeriod];
 
             return status1Str;
 
@@ -587,7 +582,7 @@ DeviceProfile_ANTFS.prototype = {
         // Check for valid beacon ID 0x43 , p. 45 ANT-FS Technical Spec.
 
         if (beaconID !== DeviceProfile_ANTFS.prototype.BEACON_ID)
-            console.log("Expected beacon ID ", DeviceProfile_ANTFS.prototype.BEACON_ID, " but got ", beaconID, " not a valid beacon broadcast. ", data);
+            console.log("Expected beacon ID ", DeviceProfile_ANTFS.prototype.BEACON_ID, ", but got ", beaconID, " not a valid beacon broadcast. ", data);
         else {
             beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data);
             console.log(Date.now() + " " + beacon.toString());
@@ -1755,7 +1750,6 @@ Content = Buffer
                 console.warn("Device does not have a serial number");
         },
 
-        
         request : function (msgID) {
              return  this.create_message(this.ANT_MESSAGE.request_message, new Buffer([0, msgID]));
         },
@@ -2117,6 +2111,9 @@ Content = Buffer
      
          },
 
+        // p. 96 ANT Message protocol and usave rev. 5.0
+        // TRANSFER_TX_COMPLETED channel event if successfull, or TX_TRANSFER_FAILED -> msg. failed to reach master or response from master failed to reach the slave -> slave may retry
+        // 3rd option : GO_TO_SEARCH is received if channel is droppped -> channel should be unassigned
          sendAcknowledgedData: function (ucChannel, pucBroadcastData) {
              var buf = Buffer.concat([new Buffer([ucChannel]), pucBroadcastData]);
 
@@ -2161,9 +2158,8 @@ Content = Buffer
                                 if (!validationCallback(data, message.id)) {
                                     // console.log("Expected startup notification after reset command, but got " + RESPONSE_EVENT_CODES[data[2]] + ", retrying...");
                                     //--maxReceiveErrorRetries;
-                                    console.log(Date.now() + " Waiting on response for "+ANT.prototype.ANT_MESSAGE[message.id]+", skipping this message");
-                                    console.log(data);
-                                    console.log(self);
+                                    console.log(Date.now() + " Waiting on response for "+ANT.prototype.ANT_MESSAGE[message.id]+", skipping this message; ",data);
+                                    //console.log(self);
                                     self.parse_response(data);
                                     if (Date.now() - startTimestamp > 10000) {
                                         console.log("Validation timeout");
@@ -2172,18 +2168,15 @@ Content = Buffer
                                     else
                                         receive();
                                 } else {
-                                    console.log(Date.now() + " (post-validation) Received:");
-                                    console.log(data);
+                                    console.log(Date.now() + " (post-validation) Received: ",data);
                                     successCallback(data);
                                 }
                             }
 
                         })
                     }
-
        
-                    console.log(Date.now()+" Sending:" + message.friendly + " timeout " + timeout + " max retries " + maxRetries+ " skip receive : " ,skipReceive ? "yes" : "no");
-                    console.log(message.buffer);
+                    console.log(Date.now()+" Sending:" + message.friendly + " timeout " + timeout + " max retries " + maxRetries+ " skip receive : " ,skipReceive ? "yes " : "no ",message.buffer);
 
                     // console.log("Transfering " + message.friendly);
                     //console.log("THIS", this);
