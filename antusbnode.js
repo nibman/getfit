@@ -13,7 +13,12 @@ DeviceProfile.prototype = {
 
     DEVICE_TYPE: 0x00,
 
-    getSlaveChannelConfiguration : function () {
+    channelResponseEvent: function (data) {
+        console.log("Channel response/event : ", data);
+        //return "Not defined";
+    },
+
+    getSlaveChannelConfiguration: function () {
         return "Not defined";
     },
 
@@ -34,7 +39,9 @@ DeviceProfile_HRM.protype = DeviceProfile.prototype;  // Inherit properties/meth
 DeviceProfile_HRM.constructor = DeviceProfile_HRM;  // Update constructor
 
 DeviceProfile_HRM.prototype = {
+
     DEVICE_TYPE: 0x78,
+
     CHANNEL_PERIOD: 8070,
 
     // Override/"property shadowing"
@@ -53,7 +60,10 @@ DeviceProfile_HRM.prototype = {
 
         channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         channel.deviceProfile = this; // Attach deviceprofile to channel
+        
+       
         this.channel = channel; // Attach channel to device profile
+        this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
         return channel;
 
@@ -63,6 +73,8 @@ DeviceProfile_HRM.prototype = {
     {
         console.log("Lost broadcast data from HRM"); 
     },
+
+
 
     broadCastDataParser: function (data) {
         var receivedTimestamp = Date.now(),
@@ -206,7 +218,10 @@ DeviceProfile_SDM.prototype = {
 
         channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         channel.deviceProfile = this; // Attach deviceprofile to channel
+       
+
         this.channel = channel; // Attach channel to device profile
+        this.channel.channelResponseEvent = this.channelResponseEvent  || DeviceProfile.prototype.channelResponseEvent;
 
         //console.log(channel);
         return channel;
@@ -492,25 +507,41 @@ DeviceProfile_ANTFS.prototype = {
         0x03: "Passkey and Pairing only"
     },
 
+
+    ANTFSCOMMAND_Link: function (channelFreq, channelPeriod, hostSerialNumber) {
+        var payload = new Buffer(8);
+
+        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
+        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.link;
+        payload[2] = channelFreq;    // Offset from 2400 Mhz
+        payload[3] = channelPeriod; // 0x04 = 8 Hz
+        payload.writeUInt32LE(hostSerialNumber, 4);
+
+        return payload;
+    },
+
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, searchTimeout) {
-      
         // Setup channel parameters for ANT-FS
-        var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANTFS);
+        this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANTFS);
 
-        channel.setChannelId(deviceNr, deviceType, transmissionType, false);
-        channel.setChannelPeriod(DeviceProfile_ANTFS.prototype.CHANNEL_PERIOD);
-        channel.setChannelSearchTimeout(ANT.prototype.INFINITE_SEARCH);
-        channel.setChannelFrequency(ANT.prototype.ANTFS_FREQUENCY);
-        channel.setChannelSearchWaveform(DeviceProfile_ANTFS.prototype.SEARCH_WAVEFORM);
+        this.channel.setChannelId(deviceNr, deviceType, transmissionType, false);
+        this.channel.setChannelPeriod(DeviceProfile_ANTFS.prototype.CHANNEL_PERIOD);
+        this.channel.setChannelSearchTimeout(ANT.prototype.INFINITE_SEARCH);
+        this.channel.setChannelFrequency(ANT.prototype.ANTFS_FREQUENCY);
+        this.channel.setChannelSearchWaveform(DeviceProfile_ANTFS.prototype.SEARCH_WAVEFORM);
 
-        channel.broadCastDataParser = this.broadCastDataParser;
+        this.channel.broadCastDataParser = this.broadCastDataParser;
+        this.channel.channelResponseEvent = this.channelResponseEvent;
 
-        channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
-        channel.deviceProfile = this; // Attach deviceprofile to channel
-        this.channel = channel; // Attach channel to device profile
+        this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
+        this.channel.deviceProfile = this; // Attach channel to device profile
 
-        return channel;
+        return this.channel;
+    },
 
+    channelResponseEvent : function (data)
+    {
+        console.log(Date.now() + " Got channelResponseEvent on ANT-FS channel ",data);
     },
     
     // It seems like the Garmin 910XT ANTFS client open the channel for about 1.75 sec. each 20 seconds. At 8Hz message rate we can expected max 16 beacon messages. -> maybe to conserve power
@@ -576,6 +607,8 @@ DeviceProfile_ANTFS.prototype = {
         return beaconInfo;
     },
 
+
+
     broadCastDataParser: function (data) {
         var beaconID = data[4],
             beacon;
@@ -590,6 +623,8 @@ DeviceProfile_ANTFS.prototype = {
             switch (beacon.authenticationType) {
                 case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
                     console.log("Proceeding to authentication....");
+                    console.trace();
+                    // Send LINK command
                     break;
                 default:
                     console.log("Authentication not implemented");
@@ -625,6 +660,7 @@ DeviceProfile_SPDCAD.prototype = {
         channel.deviceProfile = this; // Attach deviceprofile to channel
         this.channel = channel; // Attach channel to device profile
 
+        channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
         channel.broadCastDataParser = this.broadCastDataParser;
 
         return channel;
@@ -703,56 +739,7 @@ Node.prototype = {
         self.heartBeat++;
    },
 
-   router : function ()
-   {
-       var self = this;
-      // var channelNr;
-      //// var inTransfer;
-       
-      // self.ANT.device.timeout = 0; // Don't timeout/give up receiving data
-
-      // function retry() {
-
-        
-      //   self.inTransfer =  self.ANT.inEP.transfer(DEFAULT_ENDPOINT_PACKET_SIZE, function (error, data) {
-      //         if (error) {
-      //             console.log(Date.now() + "Receive: ", error);
-      //             //console.log(usb);
-      //             if (error.errno !== usb.LIBUSB_TRANSFER_CANCELLED) // May be aborted by pressing Ctrl-C in Node.js
-      //                  process.nextTick(retry); // Recursion
-      //                 //retry();
-      //         }
-      //         else {
-      //             //console.log(Date.now()+ "Received ");
-      //             //console.log(data);
-      //             parse_response.call(self,data);
-      //             process.nextTick(retry);
-      //             //retry();
-      //         }
-      //     });
-      // }
-
-       // retry();
-
-       function retry() {
-
-           self.ANT.read(0,function error (error) {
-              
-               if (error.errno !== usb.LIBUSB_TRANSFER_CANCELLED) { // May be aborted by pressing Ctrl-C in Node.js
-                   console.log("Reader:", error);
-                   process.nextTick(retry);
-               }
-
-           }, function success(data) {
-               self.ANT.parse_response.call(self, data);
-               process.nextTick(retry);
-           });
-       }
-
-       retry();
-
-   },
-
+   
 
    start: function () {
        var self = this;
@@ -800,9 +787,10 @@ Node.prototype = {
                        //    console.log("Open channel for HRM");
                        //    self.ANT.open(2, function () { console.log("Could not open channel for SDM"); }, function () {
                        //        console.log("Open channel for SDM");
+                       //console.log(self.ANT.channelConfiguration);
                                self.ANT.open(1, function () { console.log("Could not open channel for ANT-FS"); }, function () {
                                    console.log("Open channel for ANT-FS");
-                                   self.router(); // Intention is to route messages for each channel to a separate channel parser
+                                   self.ANT.listen.call(self.ANT); 
                                });
                        //    });
                        //})
@@ -1097,23 +1085,6 @@ Channel.prototype = {
 };
 
 
-
-
-   
-
-    function ANTFSCOMMAND_Link(channelFreq, channelPeriod, hostSerialNumber) {
-        var payload = new Buffer(8);
-   
-        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
-        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.link;
-        payload[2] = channelFreq;    // Offset from 2400 Mhz
-        payload[3] = channelPeriod; // 0x04 = 8 Hz
-        payload.writeUInt32LE(hostSerialNumber, 4);
-    
-        return payload;
-    }
-
-
     function getUpdatedChannelID() {
         var msgId;
     
@@ -1349,11 +1320,6 @@ Channel.prototype = {
                   transmissionType: data[7],
               };
 
-             //ANTFS_HOST.channel.number = channelID.channelNumber;
-             //ANTFS_HOST.channel.deviceNumber = channelID.deviceNumber;
-             //ANTFS_HOST.channel.deviceType = channelID.deviceTypeID;
-             //ANTFS_HOST.channel.transmissionType = channelID.transmissionType;
-
              channelID.toString = function () {
                  return "Channel nr. " + channelID.channelNumber + " device nr. " + channelID.deviceNumber + " typeID " + channelID.deviceTypeID + " transmission type " + parseTransmissionType(channelID.transmissionType);
              }
@@ -1434,7 +1400,7 @@ Channel.prototype = {
              if (msgId === 1) // Set to 1 for RF event
                  msg = "EVENT on channel " + channel + " " + ANT.prototype.RESPONSE_EVENT_CODES[msgCode].friendly;
              else
-                 msg = "RESPONSE on channel " + channel + " to msg. id " + msgId + "  " + ANT_MESSAGE[msgId] + " " + ANT.prototype.RESPONSE_EVENT_CODES[msgCode].friendly;
+                 msg = "RESPONSE on channel " + channel + " to msg. id " + msgId + "  " + ANT.prototype.ANT_MESSAGE[msgId] + " " + ANT.prototype.RESPONSE_EVENT_CODES[msgCode].friendly;
 
              //if (log)
              //    console.log(msg);
@@ -1443,57 +1409,71 @@ Channel.prototype = {
          },
 
 
+        // Overview on p. 58 - ANT Message Protocol and Usage
          parse_response: function (data) {
-             var node = this;
+             var antInstance = this;
+             //console.log("parse_response", this);
 
              var msgID = data[2];
              var channelNr;
 
-             var msgStr = Date.now() + " In Parse-response Received: ";
+             var msgStr = "";
 
              switch (msgID) {
-
-                 case ANT.prototype.ANT_MESSAGE.ANT_version.id:
-                     msgStr += ANT.prototype.ANT_MESSAGE.ANT_version.friendly + " " + ANTFS_HOST.ANTVersion;
-                     break;
-
+                
                      // Notifications
 
                  case ANT.prototype.ANT_MESSAGE.startup.id:
                      msgStr += ANT.prototype.ANT_MESSAGE.startup.friendly + " " +
-                      this.parseNotificationStartup(false, data);
+                      antInstance.parseNotificationStartup(false, data);
                      break;
 
                  case ANT.prototype.ANT_MESSAGE.serial_error.id:
                      msgStr += ANT.prototype.ANT_MESSAGE.serial_error.friendly + " " +
-                     this.parseNotificationSerialError(false, data);
+                     antInstance.parseNotificationSerialError(false, data);
                      break;
 
-                     // Channel responses
+                     // Channel event or responses
 
                  case ANT.prototype.ANT_MESSAGE.channel_response.id:
-                     msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " +
-                     this.ANT.parseChannelResponse(data);
+                     msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " + antInstance.parseChannelResponse(data);
+                    
+                     // Call channel event/response-handler for each channel
+                     channelNr = data[3];
+                     
+                      antInstance.channelConfiguration[channelNr].channelResponseEvent(data);
+
                      break;
 
-                 case ANT.prototype.ANT_MESSAGE.capabilities.id:
-                     msgStr += ANT.prototype.ANT_MESSAGE.capabilities.friendly + " " +
-                     this.parseCapabilities(data).toString();
-                     break;
+                     // Request/Response messages 
 
-                 case ANT.prototype.ANT_MESSAGE.device_serial_number.id:
-                     msgStr += ANT.prototype.ANT_MESSAGE.device_serial_number.friendly + " " +
-                     this.parseDeviceSerialNumber(data);
-                     break;
+                     // Channel specific 
 
                  case ANT.prototype.ANT_MESSAGE.channel_status.id:
                      msgStr += ANT.prototype.ANT_MESSAGE.channel_status.friendly + " " +
-                     this.parseChannelStatus(data).toString();
+                     antInstance.parseChannelStatus(data).toString();
                      break;
 
                  case ANT.prototype.ANT_MESSAGE.set_channel_id.id:
                      msgStr += ANT.prototype.ANT_MESSAGE.set_channel_id.friendly + " " +
-                    this.parseChannelID(data).toString();
+                    antInstance.parseChannelID(data).toString();
+                     break;
+
+                     // ANT device specific, i.e nRF24AP2
+
+                 case ANT.prototype.ANT_MESSAGE.ANT_version.id:
+                     antInstance.ANTVersion = data.toString('ascii', 3, 13);
+                     msgStr += ANT.prototype.ANT_MESSAGE.ANT_version.friendly + " " + antInstance.ANTVersion;
+                     break;
+
+                 case ANT.prototype.ANT_MESSAGE.capabilities.id:
+                     msgStr += ANT.prototype.ANT_MESSAGE.capabilities.friendly + " " +
+                     antInstance.parseCapabilities(data).toString();
+                     break;
+
+                 case ANT.prototype.ANT_MESSAGE.device_serial_number.id:
+                     msgStr += ANT.prototype.ANT_MESSAGE.device_serial_number.friendly + " " +
+                     antInstance.parseDeviceSerialNumber(data);
                      break;
 
                      // Data
@@ -1506,10 +1486,7 @@ Channel.prototype = {
 
                      // Call to broadcast handler for channel
 
-                     //  console.log(channelNr);
-                     //console.log(this);
-
-                     this.ANT.channelConfiguration[channelNr].broadCastDataParser(data);
+                     antInstance.channelConfiguration[channelNr].broadCastDataParser(data);
 
                      //if (data[4] === ANTFS_BEACON_ID) { // LINK Beacon
                      //    ANTFS_HOST.beaconInfo = parseClientBeacon(data);  // Update beacon info.
@@ -1529,7 +1506,7 @@ Channel.prototype = {
                      break;
              }
 
-             // console.log(msgStr);
+             console.log(Date.now() + " Rx: ",data,msgStr);
              //for (var byteNr = 0; byteNr < data.length; byteNr++) {
              //    if (byteNr === 0 && data[byteNr] === SYNC)
              //        console.log("Buffer index " + byteNr + ", value: " + data[byteNr] + " = SYNC");
@@ -1544,6 +1521,31 @@ Channel.prototype = {
              //}
 
          },
+
+        // Continuously listen on incoming traffic and send it to the general parser for further processing
+         listen: function () {
+             
+             var self = this, NO_TIMEOUT = 0;
+
+             function retry() {
+
+                 self.read(NO_TIMEOUT, function error(error) {
+
+                     if (error.errno !== usb.LIBUSB_TRANSFER_CANCELLED) { // May be aborted by pressing Ctrl-C in Node.js
+                         console.log(Date.now()+" Listen:", error);
+                         process.nextTick(retry);
+                     }
+
+                 }, function success(data) {
+                     self.parse_response.call(self, data);
+                     process.nextTick(retry);
+                 });
+             }
+
+             retry();
+
+         },
+
 
         /*
 This function create a raw message 
@@ -1570,8 +1572,8 @@ Content = Buffer
              //console.log("Message id. ", message.id, " Content is ", content);
 
              contentBuffer = new Buffer(content_len);
-             if (content_len > 8)
-                 console.warn("Content length of message is ", content_len);
+             //if (content_len > 8)
+             //    console.warn("Content length of message is ", content_len);
 
              // Header
              // SYNC = 0; // -> Provoke Serial Error Message, error 0 - SYNC incorrect, should be 0xA4
@@ -1620,92 +1622,95 @@ Content = Buffer
                  buffer: messageBuffer,
                  friendly: message.friendly
              }
-         },
+       },
 
-        getCapabilities: function (callback) {
-            var msgId;
-            var self = this;
-
-            function parseCapabilities(data) {
+        parseCapabilities : function (data) {
                 var maxANTChannels = data[3],
                     maxNetworks = data[4],
                     standardOptions = data[5],
                     advancedOptions = data[6],
                     advancedOptions2 = data[7],
-                    advancedOptions3 = data[8];
+                    advancedOptions3 = data[8],
+                        self = this;
 
-                //console.log("self in parseCapabilities is", self);
-                self.capabilities = {
+   //console.log("self in parseCapabilities is", self);
+   self.capabilities = {
 
-                    maxANTchannels: maxANTChannels,
-                    maxNetworks: maxNetworks,
+       maxANTchannels: maxANTChannels,
+       maxNetworks: maxNetworks,
 
-                    raw: {
-                        standardOptions: standardOptions,
-                        advancedOptions: advancedOptions,
-                        advancedOptions2: advancedOptions2,
-                        advancedOptions3: advancedOptions3
-                    },
+       raw: {
+           standardOptions: standardOptions,
+           advancedOptions: advancedOptions,
+           advancedOptions2: advancedOptions2,
+           advancedOptions3: advancedOptions3
+       },
 
-                    options: {
+       options: {
 
-                        CAPABILITIES_NO_RECEIVE_CHANNELS: standardOptions & 0x01,
-                        CAPABILITIES_NO_TRANSMIT_CHANNELS: standardOptions & 0x02,
-                        CAPABILITIES_NO_RECEIVE_MESSAGES: standardOptions & (1 << 3),
-                        CAPABILITIES_NO_TRANSMIT_MESSAGES: standardOptions & (1 << 4),
-                        CAPABILITIES_NO_ACKD_MESSAGES: standardOptions & (1 << 5),
-                        CAPABILITIES_NO_BURST_MESSAGES: standardOptions & (1 << 6),
+           CAPABILITIES_NO_RECEIVE_CHANNELS: standardOptions & 0x01,
+           CAPABILITIES_NO_TRANSMIT_CHANNELS: standardOptions & 0x02,
+           CAPABILITIES_NO_RECEIVE_MESSAGES: standardOptions & (1 << 3),
+           CAPABILITIES_NO_TRANSMIT_MESSAGES: standardOptions & (1 << 4),
+           CAPABILITIES_NO_ACKD_MESSAGES: standardOptions & (1 << 5),
+           CAPABILITIES_NO_BURST_MESSAGES: standardOptions & (1 << 6),
 
-                        CAPABILITIES_NETWORK_ENABLED: advancedOptions & 0x02,
-                        CAPABILITIES_SERIAL_NUMBER_ENABLED: advancedOptions & (1 << 4),
-                        CAPABILITIES_PER_CHANNEL_TX_POWER_ENABLED: advancedOptions & (1 << 5),
-                        CAPABILITIES_LOW_PRIORITY_SEARCH_ENABLED: advancedOptions & (1 << 6),
-                        CAPABILITIES_SCRIPT_ENABLED: advancedOptions & (1 << 7),
-                        CAPABILITIES_SEARCH_LIST_ENABLED: advancedOptions & (1 << 8),
+           CAPABILITIES_NETWORK_ENABLED: advancedOptions & 0x02,
+           CAPABILITIES_SERIAL_NUMBER_ENABLED: advancedOptions & (1 << 4),
+           CAPABILITIES_PER_CHANNEL_TX_POWER_ENABLED: advancedOptions & (1 << 5),
+           CAPABILITIES_LOW_PRIORITY_SEARCH_ENABLED: advancedOptions & (1 << 6),
+           CAPABILITIES_SCRIPT_ENABLED: advancedOptions & (1 << 7),
+           CAPABILITIES_SEARCH_LIST_ENABLED: advancedOptions & (1 << 8),
 
-                        CAPABILITIES_LED_ENABLED: advancedOptions2 & 0x01,
-                        CAPABILITIES_EXT_MESSAGE_ENABLED: advancedOptions2 & 0x02,
-                        CAPABILITIES_SCAN_MODE_ENABLED: advancedOptions2 & (1 << 3),
-                        CAPABILITIES_PROXY_SEARCH_ENABLED: advancedOptions2 & (1 << 5),
-                        CAPABILITIES_EXT_ASSIGN_ENABLED: advancedOptions2 & (1 << 6),
-                        CAPABILITIES_FS_ANTFS_ENABLED: advancedOptions2 & (1 << 7),
+           CAPABILITIES_LED_ENABLED: advancedOptions2 & 0x01,
+           CAPABILITIES_EXT_MESSAGE_ENABLED: advancedOptions2 & 0x02,
+           CAPABILITIES_SCAN_MODE_ENABLED: advancedOptions2 & (1 << 3),
+           CAPABILITIES_PROXY_SEARCH_ENABLED: advancedOptions2 & (1 << 5),
+           CAPABILITIES_EXT_ASSIGN_ENABLED: advancedOptions2 & (1 << 6),
+           CAPABILITIES_FS_ANTFS_ENABLED: advancedOptions2 & (1 << 7),
 
-                        CAPABILITIES_ADVANCED_BURST_ENABLED: advancedOptions3 & 0x01,
-                        CAPABILITIES_EVENT_BUFFERING_ENABLED: advancedOptions3 & 0x02,
-                        CAPABILITIES_EVENT_FILTERING_ENABLED: advancedOptions3 & (1 << 3),
-                        CAPABILITIES_HIGH_DUTY_SEARCH_ENABLED: advancedOptions3 & (1 << 4),
-                        CAPABILITIES_SELECTIVE_DATA_ENABLED: advancedOptions3 & (1 << 7)
-                    }
-                }
+           CAPABILITIES_ADVANCED_BURST_ENABLED: advancedOptions3 & 0x01,
+           CAPABILITIES_EVENT_BUFFERING_ENABLED: advancedOptions3 & 0x02,
+           CAPABILITIES_EVENT_FILTERING_ENABLED: advancedOptions3 & (1 << 3),
+           CAPABILITIES_HIGH_DUTY_SEARCH_ENABLED: advancedOptions3 & (1 << 4),
+           CAPABILITIES_SELECTIVE_DATA_ENABLED: advancedOptions3 & (1 << 7)
+       }
+   }
 
-                var msg = "Max channels: " + maxANTChannels + " Max networks: " + maxNetworks + " ";
+   var msg = "Max channels: " + maxANTChannels + " Max networks: " + maxNetworks + " ";
 
-                for (var prop in self.capabilities.options)
-                    if (self.capabilities.options[prop])
-                        msg += prop.substring(13, prop.length - 8) + " "
+   for (var prop in self.capabilities.options)
+       if (self.capabilities.options[prop])
+           msg += prop.substring(13, prop.length - 8) + " "
 
-                if (log)
-                    console.log(msg);
+   //if (log)
+   //    console.log(msg);
 
-                self.capabilities.toString = function () { return msg; }
+   self.capabilities.toString = function () { return msg; }
 
-                self.channelConfiguration = new Array(self.capabilities.maxNetworks);
+   self.channelConfiguration = new Array(self.capabilities.maxNetworks);
 
-                return self.capabilities;
+   return self.capabilities;
 
-            }
+   },
 
-            self.send(self.request(self.ANT_MESSAGE.capabilities.id),
+        getCapabilities: function (callback) {
+            var msgId;
+            var self = this;
+
+            self.sendOnly(self.request(self.ANT_MESSAGE.capabilities.id),
                 ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
-                function validation(data) { msgId = data[2]; return (msgId === self.ANT_MESSAGE.capabilities.id); },
+               // function validation(data) { msgId = data[2]; return (msgId === self.ANT_MESSAGE.capabilities.id); },
                 function error() { console.log("Failed to get device capabilities."); callback(); },
-                function success(data) {
-                    parseCapabilities(data);
-                    
-                    if (typeof callback === "function")
-                        callback();
-                    else
-                        console.warn("Found no callback after getCapabilities");
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, callback,
+                        function success(data) {
+                            self.parseCapabilities(data);
+                            if (typeof callback === "function")
+                                callback();
+                            else
+                                console.warn("Found no callback after getCapabilities");
+                        });
                 });
         },
 
@@ -1713,39 +1718,59 @@ Content = Buffer
             var msgId;
             var self = this;
     
-            self.send(self.request(self.ANT_MESSAGE.ANT_version.id),
+            self.sendOnly(self.request(self.ANT_MESSAGE.ANT_version.id),
                 ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
-                function validation(data) { msgId = data[2]; return (msgId === self.ANT_MESSAGE.ANT_version.id); },
+                //function validation(data) { msgId = data[2]; return (msgId === self.ANT_MESSAGE.ANT_version.id); },
                 function error() { console.log("Failed to get ANT version."); callback(); },
-                function success(data) { self.ANTVersion = data.toString('ascii', 3, 13);  if (typeof callback === "function")
-                    callback();
-                else
-                    console.warn("Found no callback after getANTVersion"); });
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, callback,
+                       function success(data) {
+                           
+                           self.parse_response(data);
+                           if (typeof callback === "function")
+                               callback();
+                           else
+                               console.warn("Found no callback after getANTVersion");
+                       });
+
+                });
         },
+
+          parseDeviceSerialNumber : function (data) {
+                // SN 4 bytes Little Endian
+                var sn = data.readUInt32LE(3),
+                  msg = "Serial number: " + sn,
+                    self = this;
+
+                self.serialNumber = sn;
+
+                if (log)
+                    console.log(msg);
+
+                return msg;
+            },
 
         getDeviceSerialNumber: function (callback) {
             var msgId;
             var self = this;
 
-            function parseDeviceSerialNumber(data) {
-                // SN 4 bytes Little Endian
-                var sn = data.readUInt32LE(3);
-                var msg = "Serial number: " + sn;
-                self.serialNumber = sn;
-                if (log)
-                    console.log(msg);
-
-                return msg;
-            }
-
             if (typeof self.capabilities === "undefined") {
                 console.error("getCapabilities should be run first to determine if device supports serial number");
             } else if (self.capabilities.options.CAPABILITIES_SERIAL_NUMBER_ENABLED)
-                self.send(self.request(self.ANT_MESSAGE.device_serial_number.id),
+                self.sendOnly(self.request(self.ANT_MESSAGE.device_serial_number.id),
                     ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
-                    function validation(data) { msgId = data[2]; return (msgId === self.ANT_MESSAGE.device_serial_number.id); },
+                    //function validation(data) { msgId = data[2]; return (msgId === self.ANT_MESSAGE.device_serial_number.id); },
                     function error() { console.log("Failed to get device serial number"); callback(); },
-                    function success(data) { parseDeviceSerialNumber(data); callback(); });
+                    function success() {
+                        self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, callback,
+                       function success(data) {
+                           self.parse_response(data); 
+                           if (typeof callback === "function")
+                               callback();
+                           else
+                               console.warn("Found no callback after getDeviceSerialNumber");
+                       });
+                    });
             else
                 console.warn("Device does not have a serial number");
         },
@@ -1764,14 +1789,19 @@ Content = Buffer
 
             var reset_system_msg = this.create_message(this.ANT_MESSAGE.reset_system, new Buffer([0])),
                 self = this;
-            self.send(reset_system_msg,
+            self.sendOnly(reset_system_msg,
                 ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
-                    function validation(data) { return self.isStartupNotification(data); },
+                   // function validation(data) { return self.isStartupNotification(data); },
                     function error() { console.log("Could not reset device, try to reinsert USB stick to clean up buffers and drivers."); errorCallback(); },
-                    function success(data) {
-                    //parse_response(data);
-                        console.log("Reset system OK");
-                        setTimeout(function () { successCallback() }, 500);
+                    function success() {
+                        self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                            function success(data) {
+                                self.parse_response(data);
+                                //console.log("Reset system OK");
+                                successCallback();
+                            });
+                        // setTimeout(function () { successCallback() }, 500);
+
                 });
     },
 
@@ -1835,13 +1865,12 @@ Content = Buffer
             //retry();
         },
 
-        init :  function (errorCallback,callback)
-        {
+        init: function (errorCallback, callback) {
             var self = this;
             //  usb.setDebugLevel(3);
 
             //var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
-          
+
             self.device = usb.findByIds(self.idVendor, self.idProduct);
 
             if (typeof self.device === "undefined") {
@@ -1883,47 +1912,53 @@ Content = Buffer
                 console.log("Claiming interface");
                 self.antInterface.claim(); // Must call before attempting transfer on endpoints
 
-                self.resetSystem(errorCallback,  function _getCapabilities () {
+                //self.listen();
+
+                self.resetSystem(errorCallback, function _getCapabilities() {
+                   
                     self.getCapabilities(function _getANTVersion() {
                         self.getANTVersion(function _getDeviceSerialNumber() {
-                            self.getDeviceSerialNumber(callback);
-                        }) }) });
+                            self.getDeviceSerialNumber(callback); }) 
+                    }) });
+                    
+                    //});
+                //});
+                // Setup in endpoint event listeners
+
+                //inEP.addListener('data', function (data) {
+                //    var timestamp = Date.now();
+                //    console.log(timestamp);
+                //    parse_response(data);
+                //});
+
+                //inEP.addListener('error', function (error) {
+                //    console.error("inEndpoint error "+error);
+                //});
+
+                //inEP.addListener('end', function (error) {
+                //    console.log("In endpoint received END event"); // stopStream must be called before
+                //});
+
+                //console.log("Starting instream with max packet size: "+ant.deviceDescriptor.bMaxPacketSize0);
+                //inEP.startStream(5, ant.deviceDescriptor.bMaxPacketSize0/2);
+
+                ////// Setup out endpoint event listeners
+
+                //outEP.addListener('drain', function (data) {
+                //    console.log(Date.now()+" Drain");
+                //});
+
+                //outEP.addListener('error', function (error) {
+                //    console.error("outEndpoint error " + error);
+                //});
+
+                //outEP.addListener('end', function (error) {
+                //    console.log("Out endpoint received END event"); // stopStream must be called before
+                //});
+
+                //console.log("Starting outstream...");
+                //outEP.startStream(5, ant.deviceDescriptor.bMaxPacketSize0 / 2);
             }
-            // Setup in endpoint event listeners
-
-            //inEP.addListener('data', function (data) {
-            //    var timestamp = Date.now();
-            //    console.log(timestamp);
-            //    parse_response(data);
-            //});
-
-            //inEP.addListener('error', function (error) {
-            //    console.error("inEndpoint error "+error);
-            //});
-
-            //inEP.addListener('end', function (error) {
-            //    console.log("In endpoint received END event"); // stopStream must be called before
-            //});
-
-            //console.log("Starting instream with max packet size: "+ant.deviceDescriptor.bMaxPacketSize0);
-            //inEP.startStream(5, ant.deviceDescriptor.bMaxPacketSize0/2);
-
-            ////// Setup out endpoint event listeners
-
-            //outEP.addListener('drain', function (data) {
-            //    console.log(Date.now()+" Drain");
-            //});
-
-            //outEP.addListener('error', function (error) {
-            //    console.error("outEndpoint error " + error);
-            //});
-
-            //outEP.addListener('end', function (error) {
-            //    console.log("Out endpoint received END event"); // stopStream must be called before
-            //});
-
-            //console.log("Starting outstream...");
-            //outEP.startStream(5, ant.deviceDescriptor.bMaxPacketSize0 / 2);
         },
 
         configure : function (channelConfNr, errorCallback, successCallback)
@@ -1931,39 +1966,39 @@ Content = Buffer
             var self = this;
             var channel = self.channelConfiguration[channelConfNr];
 
-            console.log("Configuring : ", channel);
+            console.log("Configuring : ", channelConfNr);
 
             self.setNetworkKey(channelConfNr,
                      function () { console.log("Failed to set network key.", channel.network) },
                      function (data) {
-                         console.log("Set network key OK ");
+                        // console.log("Set network key OK ");
                          self.assignChannel(channelConfNr,
                              function () { console.log(Date.now() + " Could not assign channel ", channel); errorCallback(); },
                              function (data) {
-                                 console.log(Date.now() + " Assign channel OK");
+                                 //console.log(Date.now() + " Assign channel OK");
                                  self.setChannelId(channelConfNr,
                                      function () { console.log(Date.now() + " Could not set channel id ", channel); errorCallback(); },
                                       function (data) {
-                                          console.log(Date.now() + " Set channel id OK ");
+                                          //console.log(Date.now() + " Set channel id OK ");
                                           self.setChannelPeriod(channelConfNr,
                                              function () { console.log(Date.now() + " Could not set period ", channel); errorCallback(); },
                                               function (data) {
-                                                  console.log(Date.now() + " Set channel period OK ");
+                                                  //console.log(Date.now() + " Set channel period OK ");
 
                                                   self.setChannelSearchTimeout(channelConfNr,
                                                          function () { console.log(Date.now() + " Could not channel searchtimeout ", channel); errorCallback(); },
                                                           function (data) {
-                                                              console.log(Date.now() + " Set channel search timeout OK");
+                                                              //console.log(Date.now() + " Set channel search timeout OK");
 
                                                               self.setChannelRFFrequency(channelConfNr,
                                                                      function () { console.log(Date.now() + " Could not set RF frequency ", channel); errorCallback(); },
                                                                       function (data) {
-                                                                          console.log(Date.now() + " Set channel RF frequency OK");
+                                                                         // console.log(Date.now() + " Set channel RF frequency OK");
                                                                           if (typeof channel.searchWaveform !== "undefined") {
                                                                               self.setSearchWaveform(channelConfNr,
                                                                                  function () { console.log(Date.now() + " Could not channel search waveform ", channel); errorCallback(); },
                                                                                  function (data) {
-                                                                                     console.log(Date.now() + " Set channel search waveform OK");
+                                                                                    // console.log(Date.now() + " Set channel search waveform OK");
                                                                                      successCallback();
                                                                                  });
                                                                           } else
@@ -1977,26 +2012,45 @@ Content = Buffer
 
         },
 
-        setNetworkKey: function (channelConfNr, errorCallback, successCallback) {
 
+        setNetworkKey: function (channelConfNr, errorCallback, successCallback) {
+            var self = this;
             var channel = this.channelConfiguration[channelConfNr];
 
             console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key);
-                this.send(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]),new Buffer(channel.network.key)])),
-                ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+           
+            self.sendOnly(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]), new Buffer(channel.network.key)])),
+            ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, 
+             function success() {
+                 self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                      function success(data) {
+                          self.parse_response(data);
+                          successCallback();
+                      });
+             }
+            );
         },
 
         assignChannel: function (channelConfNr,errorCallback, successCallback) {
            
-            var channel = this.channelConfiguration[channelConfNr];
+            var channel = this.channelConfiguration[channelConfNr], self = this;
+
             console.log("Assign channel nr. " + channel.number + " to channel type " + Channel.prototype.CHANNEL_TYPE[channel.channelType]
-                +"("+channel.channelType+")"+ " on network nr.:" + channel.network.number);
+                + "(" + channel.channelType + ")" + " on network nr.:" + channel.network.number);
+
             // Assign channel command should be issued before any other channel configuration messages (p. 64 ANT Message Protocol And Usaga Rev 50) ->
             // also sets defaults values for RF, period, tx power, search timeout p.22
-            this.send(this.create_message(this.ANT_MESSAGE.assign_channel, new Buffer([channel.number, channel.channelType, channel.network.number])),
-                ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
-
-           
+            this.sendOnly(this.create_message(this.ANT_MESSAGE.assign_channel, new Buffer([channel.number, channel.channelType, channel.network.number])),
+                ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, 
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                         function success(data) {
+                             self.parse_response(data);
+                             successCallback();
+                         });
+                }
+                );
+                
         },
 
         setChannelId : function (channelConfNr,errorCallback, successCallback) {
@@ -2006,7 +2060,7 @@ Content = Buffer
             //                        function () { exit("Failed to set channel id.") },
             // ANTWARE II - log file   1061.985 { 798221031} Tx - [A4][05][51][00][00][00][78][00][88][00][00]
 
-            var set_channel_id_msg;
+            var set_channel_id_msg, self = this;
             var channel = this.channelConfiguration[channelConfNr];
             console.log("Setting channel id. - channel number " + channel.number + " device type " + channel.deviceType + " transmission type " + channel.transmissionType);
 
@@ -2019,13 +2073,21 @@ Content = Buffer
             buf[4] = channel.transmissionType; // Can be set to zero (wildcard) on a slave device, spec. p. 18 ANT Message Protocol and Usage, rev 5.0
 
             set_channel_id_msg = this.create_message(this.ANT_MESSAGE.set_channel_id, buf);
-            this.send(set_channel_id_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
-
+            self.sendOnly(set_channel_id_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, 
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                         function success(data) {
+                             self.parse_response(data);
+                             successCallback();
+                         });
+                }
+                );
+                  
         },
 
         setChannelPeriod : function (channelConfNr,errorCallback, successCallback) {
 
-            var set_channel_period_msg, rate;
+            var set_channel_period_msg, rate, self = this;
             var channel = this.channelConfiguration[channelConfNr];
 
             console.log("Set channel period for channel" +channel.number+ " to " +  channel.periodFriendly+ " value: "+channel.period);
@@ -2036,36 +2098,60 @@ Content = Buffer
 
             set_channel_period_msg = this.create_message(this.ANT_MESSAGE.set_channel_messaging_period, new Buffer(buf));
 
-            this.send(set_channel_period_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+            this.sendOnly(set_channel_period_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, 
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                         function success(data) {
+                             self.parse_response(data);
+                             successCallback();
+                         });
+                }
+                );
         },
 
         setChannelSearchTimeout: function (channelConfNr, errorCallback, successCallback) {
 
             // Each count in ucSearchTimeout = 2.5 s, 255 = infinite, 0 = disable high priority search mode
-            var channel_search_timeout_msgt;
+            var channel_search_timeout_msgt, self = this;
             var channel = this.channelConfiguration[channelConfNr];
 
             console.log("Set channel search timeout channel nr. " + channel.number + " timeout : " + channel.searchTimeout);
 
             channel_search_timeout_msg = this.create_message(this.ANT_MESSAGE.set_channel_search_timeout, new Buffer([channel.number, channel.searchTimeout]));
 
-            this.send(channel_search_timeout_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+            this.sendOnly(channel_search_timeout_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                         function success(data) {
+                             self.parse_response(data);
+                             successCallback();
+                         });
+                }
+                );
         },
 
         setChannelRFFrequency : function (channelConfNr,errorCallback, successCallback) {
             // ucRFFreq*1Mhz+2400 Mhz
-            var RFFreq_msg ;
+            var RFFreq_msg, self = this ;
             var channel = this.channelConfiguration[channelConfNr];
 
             console.log("Set channel RF frequency channel nr. " + channel.number + " frequency value: " + channel.RFfrequency);
             RFFreq_msg = this.create_message(this.ANT_MESSAGE.set_channel_RFFreq, new Buffer([channel.number, channel.RFfrequency]));
-            this.send(RFFreq_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+            this.sendOnly(RFFreq_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, 
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                         function success(data) {
+                             self.parse_response(data);
+                             successCallback();
+                         });
+                }
+                );
         },
 
         setSearchWaveform : function (channelConfNr,errorCallback, successCallback) {
             // waveform in little endian!
           
-            var set_search_waveform_msg,
+            var set_search_waveform_msg, self = this,
                 buf = new Buffer(3);
             var channel = this.channelConfiguration[channelConfNr];
 
@@ -2080,7 +2166,15 @@ Content = Buffer
             buf[1] = channel.searchWaveform[0];
             buf[2] = channel.searchWaveform[1];
             set_search_waveform_msg = this.create_message(this.ANT_MESSAGE.set_search_waveform, new Buffer(buf));
-            this.send(set_search_waveform_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+            this.sendOnly(set_search_waveform_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, 
+                function success() {
+                    self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
+                         function success(data) {
+                             self.parse_response(data);
+                             successCallback();
+                         });
+                }
+                );
         },
 
         open : function (channelConfNr,errorCallback, successCallback) {
@@ -2089,7 +2183,7 @@ Content = Buffer
             var channel = this.channelConfiguration[channelConfNr];
             console.log("Opening channel nr. " + channel.number);
         open_channel_msg = this.create_message(this.ANT_MESSAGE.open_channel, new Buffer([channel.number]));
-        this.send(open_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+        this.sendOnly(open_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, successCallback);
     },
 
         close : function (channelConfNr,errorCallback, successCallback) {
@@ -2098,10 +2192,10 @@ Content = Buffer
             var channel = this.channelConfiguration[channelConfNr];
             console.log("Closing channel nr. " + channel.number);
         close_channel_msg = this.create_message(this.ANT_MESSAGE.close_channel, new Buffer([channel.number]));
-        this.send(close_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
+        this.sendOnly(close_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, successCallback);
     },
 
-         isResponseNoError : function(data,requestedMsgId) {
+        isResponseNoError: function (data, requestedMsgId) {
              var msgId = data[2], msgRequested = data[4], msgCode = data[5];
 
              //console.log(Date.now() + " Validation");
@@ -2193,6 +2287,46 @@ Content = Buffer
                 }
 
                 retry(maxSendRetries);
+         },
+
+         sendOnly: function (message, maxRetries, timeout, errorCallback, successCallback) {
+             var self = this;
+
+             console.log(Date.now() + " Tx: ", message.buffer, " "+message.friendly + " timeout " + timeout + " max retries " + maxRetries);
+             if (typeof successCallback === "undefined")
+                 console.trace();
+             this.device.timeout = timeout;
+
+             function retry(retryNr) {
+
+                     self.outTransfer = self.outEP.transfer(message.buffer, function outTransferCallback(error) {
+                         if (error) { // LIBUSB errors
+                             console.log(Date.now() + " Send error: ", error, ", retrying...");
+                             retryNr -= 1;
+                             if (retryNr > 0)
+                                 retry(retryNr);
+                             else {
+                                 if (typeof errorCallback !== "undefined")
+                                     errorCallback();
+                                 else {
+                                     console.error("Error callback is undefined");
+                                     console.trace();
+                                 }
+                             }
+                         }
+                         else {
+                             if (typeof successCallback !== "undefined")
+                                 successCallback();
+                             else {
+                                 console.error("Success callback is undefined");
+                                 //console.trace();
+                             }
+
+                         }
+                     });
+             }
+
+             retry(maxRetries); 
          }
 
  }
