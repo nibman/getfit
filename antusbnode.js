@@ -431,6 +431,7 @@ DeviceProfile_SDM.prototype = {
 function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
+    this.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER;
 }
 
 DeviceProfile_ANTFS.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -506,7 +507,20 @@ DeviceProfile_ANTFS.prototype = {
         0x03: "Passkey and Pairing only"
     },
 
+    DISCONNECT_COMMAND : {
+        RETURN_TO_LINK_LAYER : 0x00,
+        RETURN_TO_BROADCAST_MODE : 0x01
+        // 2-127 reserved
+        // 128 - 255 device specific disconnect
+    },
 
+    AUTHENTICATE_COMMAND : {
+        PROCEED_TO_TRANSPORT : 0x00, // Pass-through
+        REQUEST_CLIENT_DEVICE_SERIAL_NUMBER : 0x01,
+        REQUEST_PAIRING : 0x02,
+        REQUEST_PASSKEY_EXCHANGE : 0x03
+    },
+    
     // host serial number is available on antInstance.serialNumber if getDeviceSerialNumber has been executed
     ANTFSCOMMAND_Link: function (channelFreq, channelPeriod, hostSerialNumber) {
         var payload = new Buffer(8);
@@ -515,6 +529,34 @@ DeviceProfile_ANTFS.prototype = {
         payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.LINK;
         payload[2] = channelFreq;    // Offset from 2400 Mhz
         payload[3] = channelPeriod; // 0x04 = 8 Hz
+        payload.writeUInt32LE(hostSerialNumber, 4);
+
+        return payload;
+    },
+
+    // p. 52 ANT-FS technical spec.
+    ANTFSCOMMAND_Disconnect : function (commandType, timeDuration, applicationSpecificDuration)
+    {
+        // timeDuration - 0x00 - Disabled/Invalid
+        // application specific duration - 0x00 - Disabled/Invalid
+        var payload = new Buffer(4);
+
+        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
+        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.DISCONNECT;
+        payload[2] = timeDuration;
+        payload[3] = applicationSpecificDuration;
+
+        return payload;
+    },
+
+    ANTFSCOMMAND_Authentication : function (commandType, authStringLength, hostSerialNumber)
+    {
+        var payload = new Buffer(8);
+
+        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
+        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.AUTHENTICATE;
+        payload[2] = commandType;
+        payload[3] = authStringLength; // "Set to 0 if no authentication is to be supplied", "string is bursts to the client immediately following this command"
         payload.writeUInt32LE(hostSerialNumber, 4);
 
         return payload;
@@ -541,7 +583,34 @@ DeviceProfile_ANTFS.prototype = {
 
     channelResponseEvent : function (data)
     {
-        console.log(Date.now() + " Got channelResponseEvent on ANT-FS channel ",data);
+        console.log(Date.now() + " Got channelResponseEvent on ANT-FS channel ", data);
+
+        // This === channelConfiguration
+        //console.log("THIS", this);
+
+        switch (this.deviceProfile.state) {
+            // LINK layer
+            case DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER:
+                console.log("IN LINK LAYER");
+
+                if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data)) {
+                    this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER; // Expect AUTHENTICATION BEACON from client
+                    delete this.deviceProfile.sendingLINK;
+                    console.log("YIPPI, got event transfer completed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+                } else
+                    delete this.deviceProfile.sendingLINK; // Resend link command
+
+                //if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_FAILED, data))
+                //    console.log("YIPPI, got event transfer FAILED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+
+                break;
+
+            default:
+                console.log("LAYER for state %d not implemented", this.deviceProfile.state);
+                break;
+        }
+
+
     },
     
     // It seems like the Garmin 910XT ANTFS client open the channel for about 1.75 sec. each 20 seconds. At 8Hz message rate we can expected max 16 beacon messages. -> maybe to conserve power
@@ -607,6 +676,22 @@ DeviceProfile_ANTFS.prototype = {
         return beaconInfo;
     },
 
+    sendLinkCommand : function ()
+    {
+        //console.log("LINK", this); this = channelConfiguration
+        var channelNr = this.number, self = this;
+        var linkMsg = this.deviceProfile.ANTFSCOMMAND_Link(ANT.prototype.ANTFS_FREQUENCY, DeviceProfile_ANTFS.prototype.BEACON_CHANNEL_PERIOD.Hz8, this.nodeInstance.ANT.serialNumber);
+        this.nodeInstance.ANT.sendAcknowledgedData(channelNr, linkMsg,
+            function error(error) {
+                console.log(Date.now() + " Could not send ANT-FS link command ", error);
+                delete self.deviceProfile.sendingLINK;
+            },
+            function success() {
+                console.log(Date.now() + " ANT-FS link command sent.");
+               
+            });
+    },
+
     broadCastDataParser: function (data) {
         var beaconID = data[4], channelNr = data[3],
             beacon;
@@ -623,6 +708,7 @@ DeviceProfile_ANTFS.prototype = {
             console.log(Date.now() + " " + beacon.toString());
 
             if (beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
+                this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
 
                 switch (beacon.authenticationType) {
                     case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
@@ -634,24 +720,18 @@ DeviceProfile_ANTFS.prototype = {
                         // Do not enter this region more than once
                         if (typeof this.deviceProfile.sendingLINK === "undefined") {
                             this.deviceProfile.sendingLINK = true;
-                            var linkMsg = this.deviceProfile.ANTFSCOMMAND_Link(ANT.prototype.ANTFS_FREQUENCY, DeviceProfile_ANTFS.prototype.BEACON_CHANNEL_PERIOD.Hz8, this.nodeInstance.ANT.serialNumber);
-                            this.nodeInstance.ANT.sendAcknowledgedData(channelNr, linkMsg,
-                                function error() {
-                                    console.log(Date.now() + " Could not send ANT-FS link command");
-                                    delete this.deviceProfile.sendingLINK;
-                                },
-                                function success() {
-                                    console.log(Date.now() + " ANT-FS link command sent.");
-                                });
+                            this.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(this);
                         }
 
                         break;
 
                     default:
-                        console.log("Authentication not implemented");
+                        console.error("Authentication type not implemented ",DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beacon.authentication],"("+beacon.authentication+")");
                         break;
                 }
             } else if (beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER) {
+                // One exception is EVENT_TRANSFER_TX_FAILED of link command (but device got the command and still sends AUTHENTICATION BEACON)  
+                this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
 
                 // Is authentication beacon for us?
 
@@ -1115,9 +1195,6 @@ Channel.prototype = {
 
 };
 
-
-   
-
 // Low level API/interface to ANT USB stick
     function ANT(idVendor,idProduct) {
        // this.channel = channel;
@@ -1231,71 +1308,104 @@ Channel.prototype = {
 
         },
 
-         RESPONSE_EVENT_CODES : {
+         RESPONSE_EVENT_CODES: {
+
             RESPONSE_NO_ERROR : 0x00,
             0x00: { friendly: "RESPONSE_NO_ERROR" },
+
             EVENT_RX_TIMEOUT : 0x01,
             0x01: { friendly: "EVENT_RX_TIMEOUT" },
+
             EVENT_RX_FAIL : 0x02,
             0x02: { friendly: "EVENT_RX_FAIL" },
+
             EVENT_TX : 0x03,
             0x03: { friendly: "EVENT_TX" },
+
             EVENT_TRANSFER_RX_FAILED : 0x04,
             0x04: { friendly: "EVENT_TRANSFER_RX_FAILED" },
+
             EVENT_TRANSFER_TX_COMPLETED : 0x05,
             0x05: { friendly: "EVENT_TRANSFER_TX_COMPLETED" },
+
             EVENT_TRANSFER_TX_FAILED : 0x06,
             0x06: { friendly: "EVENT_TRANSFER_TX_FAILED" },
+
             EVENT_CHANNEL_CLOSED : 0x07,
             0x07: { friendly: "EVENT_CHANNEL_CLOSED" },
+
             EVENT_RX_FAIL_GO_TO_SEARCH : 0x08,
             0x08: { friendly: "EVENT_RX_FAIL_GO_TO_SEARCH" },
+
             EVENT_CHANNEL_COLLISION : 0x09,
             0x09: { friendly: "EVENT_CHANNEL_COLLISION" },
+
             EVENT_TRANSFER_TX_START :  0x0A,
             0x0A: { friendly: "EVENT_TRANSFER_TX_START" },
+
             EVENT_TRANSFER_NEXT_DATA_BLOCK : 0x11,
             0x11: { friendly: "EVENT_TRANSFER_NEXT_DATA_BLOCK" },
+
             CHANNEL_IN_WRONG_STATE : 0x15,
             0x15: { friendly: "CHANNEL_IN_WRONG_STATE" },
+
             CHANNEL_NOT_OPENED : 0x16,
             0x16: { friendly: "CHANNEL_NOT_OPENED" },
+
             CHANNEL_ID_NOT_SET : 0x18,
             0x18: { friendly: "CHANNEL_ID_NOT_SET" },
+
             CLOSE_ALL_CHANNELS : 0x19,
             0x19: { friendly: "CLOSE_ALL_CHANNELS" },
+
             TRANSFER_IN_PROGRESS: 0x1F,
             0x1F: { friendly: "TRANSFER_IN_PROGRESS" },
+
             TRANSFER_SEQUENCE_NUMBER_ERROR : 0x20,
             0x20: { friendly: "TRANSFER_SEQUENCE_NUMBER_ERROR" },
+
             TRANSFER_IN_ERROR : 0x21,
             0x21: { friendly: "TRANSFER_IN_ERROR" },
+
             MESSAGE_SIZE_EXCEEDS_LIMIT : 0x27,
             0x27: { friendly: "MESSAGE_SIZE_EXCEEDS_LIMIT" },
+
             INVALID_MESSAGE : 0x28,
             0x28: { friendly: "INVALID_MESSAGE" },
+
             INVALID_NETWORK_NUMBER : 0x29,
             0x29: { friendly: "INVALID_NETWORK_NUMBER" },
+
             INVALID_LIST_ID : 0x30,
             0x30: { friendly: "INVALID_LIST_ID" },
+
             INVALID_SCAN_TX_CHANNEL : 0x31,
             0x31: { friendly: "INVALID_SCAN_TX_CHANNEL" },
+
             INVALID_PARAMETER_PROVIDED : 0x33,
             0x33: { friendly: "INVALID_PARAMETER_PROVIDED" },
+
             EVENT_SERIAL_QUEUE_OVERFLOW : 0x34,
             0x34: { friendly: "EVENT_SERIAL_QUEUE_OVERFLOW" },
+
             EVENT_QUEUE_OVERFLOW : 0x35,
             0x35: { friendly: "EVENT_QUEUE_OVERFLOW" },
+
             NVM_FULL_ERROR : 0x40,
             0x40: { friendly: "NVM_FULL_ERROR" },
+
             NVM_WRITE_ERROR : 0x41,
             0x41: { friendly: "NVM_WRITE_ERROR" },
+
             USB_STRING_WRITE_FAIL : 0x70,
             0x70: { friendly: "USB_STRING_WRITE_FAIL" },
+
             MESG_SERIAL_ERROR_ID : 0xAE,
             0xAE: { friendly: "MESG_SERIAL_ERROR_ID" },
+
             ENCRYPT_NEGOTIATION_SUCCESS : 0x38,
             0x38: { friendly: "ENCRYPT_NEGOTIATION_SUCCESS" },
+
             ENCRYPT_NEGOTIATION_FAIL : 0x39,
             0x39: { friendly: "ENCRYPT_NEGOTIATION_FAIL" },
          },
@@ -1934,7 +2044,7 @@ Content = Buffer
             
             self.device.timeout = timeout; // Don't timeout/give up receiving data
 
-            //function retry() {
+            //function retry() {try
 
 
                 self.inTransfer = self.inEP.transfer(ANT.prototype.DEFAULT_ENDPOINT_PACKET_SIZE, function (error, data) {
@@ -1959,6 +2069,45 @@ Content = Buffer
             //}
 
             //retry();
+        },
+
+        // Noticed that in endpoint buffers are not cleared sometimes when stopping application using Ctrl-C -> process SIGINT -> exit
+        // Max. buffer size = 64 on in endpoint
+        tryCleaningBuffers : function (callback)
+        {
+            var self = this;
+            var retries = 0, bytes = 0;
+            //console.log(self.device);
+
+            self.device.timeout = ANT.prototype.ANT_DEVICE_TIMEOUT;
+
+            function retry()
+            {
+                self.inEP.transfer(ANT.prototype.DEFAULT_ENDPOINT_PACKET_SIZE, function inTransferCallback(error, data) {
+                    if (error) {
+                        if (error.errno !== usb.LIBUSB_TRANSFER_TIMED_OUT) {
+                            console.log(Date.now() + "Error:", error);
+                            retries++;
+                            retry();
+                            //process.nextTick.call(self, self.tryCleaningBuffers);
+                        }
+                        else {
+                            if (bytes > 0)
+                                console.log("Discarded %d bytes from libusb buffers on in endpoint.", bytes);
+                            callback(); // No more data, timeout
+                        }
+                    }
+                    else {
+                        //console.log("Discarding buffer data:", data, data.length)
+                        bytes += data.length;
+                        retries++;
+                        retry();
+                    }
+                });
+            }
+
+            retry();
+
         },
 
         init: function (errorCallback, callback) {
@@ -2010,12 +2159,19 @@ Content = Buffer
 
                 //self.listen();
 
-                self.resetSystem(errorCallback, function _getCapabilities() {
-                   
-                    self.getCapabilities(function _getANTVersion() {
-                        self.getANTVersion(function _getDeviceSerialNumber() {
-                            self.getDeviceSerialNumber(callback); }) 
-                    }) });
+              //  console.log("Cleaning LIBUSB in endpoint buffers....");
+
+                self.tryCleaningBuffers(
+                    function () {
+                        self.resetSystem(errorCallback, function _getCapabilities() {
+
+                            self.getCapabilities(function _getANTVersion() {
+                                self.getANTVersion(function _getDeviceSerialNumber() {
+                                    self.getDeviceSerialNumber(callback);
+                                })
+                            })
+                        });
+                    });
                     
                     //});
                 //});
@@ -2307,7 +2463,16 @@ Content = Buffer
             console.log("Closing channel nr. " + channel.number);
         close_channel_msg = this.create_message(this.ANT_MESSAGE.close_channel, new Buffer([channel.number]));
         this.sendOnly(close_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, successCallback);
-    },
+        },
+
+        //Rx:  <Buffer a4 03 40 01 01 05 e2> Channel Response/Event EVENT on channel 1 EVENT_TRANSFER_TX_COMPLETED
+        //Rx:  <Buffer a4 03 40 01 01 06 e1> Channel Response/Event EVENT on channel 1 EVENT_TRANSFER_TX_FAILED
+        isEvent : function (code, data)
+        {
+            var msgId = data[2], channelNr = data[3], eventOrResponse = data[4], eventCode = data[5], EVENT = 1;
+
+            return (msgId === ANT.prototype.ANT_MESSAGE.channel_response.id && eventOrResponse === EVENT && code === eventCode)
+        },
 
         isResponseNoError: function (data, requestedMsgId) {
              var msgId = data[2], msgRequested = data[4], msgCode = data[5];
@@ -2429,7 +2594,7 @@ Content = Buffer
                                  retry(retryNr);
                              else {
                                  if (typeof errorCallback !== "undefined")
-                                     errorCallback();
+                                     errorCallback(error);
                                  else {
                                      console.error("Error callback is undefined");
                                      console.trace();
