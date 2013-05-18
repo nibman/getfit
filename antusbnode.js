@@ -1,6 +1,7 @@
 // Some info. from : https://github.com/Tigge/Garmin-Forerunner-610-Extractor
 
-var usb = require('./usb');
+var usb = require('./usb'),
+    fs = require('fs');
 
 var log = true;
 
@@ -558,17 +559,15 @@ DeviceProfile_ANTFS.prototype = {
 
                             authenticate_response.responseType = data[10];
                             authenticate_response.authenticationStringLength = data[11];
-
-                            
-                           
                             
                             if (authenticate_response.responseType === 0x00 ) // For client serial number
                             {
                                 authenticate_response.clientSerialNumber = data.readUInt32LE(12);
                                 // in this case, authentication string will be the friendly name of the client device
-                                if (authenticate_response.authenticationStringLength > 0)
+                                if (authenticate_response.authenticationStringLength > 0) {
                                     authenticate_response.authenticationString = data.toString('utf8', 16, 16 + authenticate_response.authenticationStringLength);
-
+                                    authenticate_response.clientFriendlyName = authenticate_response.authenticationString;
+                                }
                             }
 
                             // Accept of pairing bulk response 
@@ -578,8 +577,16 @@ DeviceProfile_ANTFS.prototype = {
                             
                             if (authenticate_response.responseType === 0x01) // Accept of pairing request or the provided passkey
                             {
-                                if (authenticate_response.authenticationStringLength > 0)
-                                    authenticate_response.authenticationString = data.slice(16, 16 + authenticate_response.authenticationStringLength);
+                                if (authenticate_response.authenticationStringLength > 0) {
+                                    authenticate_response.authenticationString = data.slice(16, 16 + authenticate_response.authenticationStringLength); // Passkey
+                                    // TO DO : write to file client serial number + friendlyname + passkey + { channel id (device nr./type+transmission type) ? }
+                                    fs.writeFile('passkey.txt', authenticate_response.authenticationString, function (err) {
+                                        if (err)
+                                            console.log(Date.now() + " Error writing to passkey file", err);
+                                        else
+                                            console.log(Date.now() + " Saved passkey received from device");
+                                    });
+                                }
                             }
 
                             if (authenticate_response.responseType === 0x02) // Reject
@@ -803,7 +810,7 @@ DeviceProfile_ANTFS.prototype = {
     //1368702944972 Rx:  <Buffer a4 09 50 21 44 84 00 10 30 67 0b e5 b5> * NO parser specified *
     //1368702944975 Rx:  <Buffer a4 09 50 41 46 6f 72 65 72 75 6e 6e 85> * NO parser specified *
     //1368702944983 Rx:  <Buffer a4 09 50 e1 65 72 20 39 31 30 58 54 1f> * NO parser specified *
-    sendRequestForClientDeviceSerialNumber: function ()
+    sendRequestForClientDeviceSerialNumber: function (callback)
     {
         var channelNr = this.number, self = this;
         var authMsg = this.deviceProfile.ANTFSCOMMAND_Authentication(DeviceProfile_ANTFS.prototype.AUTHENTICATE_COMMAND.REQUEST_CLIENT_DEVICE_SERIAL_NUMBER,0, this.nodeInstance.ANT.serialNumber);
@@ -814,8 +821,11 @@ DeviceProfile_ANTFS.prototype = {
                 delete self.deviceProfile.sendingAUTH_CLIENT_SN; // Allow resend
             },
             function success() {
-                console.log(Date.now() + " Request for client device serial number sent.");
-
+                console.log(Date.now() + " Request for client device serial number acknowledged by device.");
+                if (typeof callback === "function")
+                    callback();
+                else
+                    console.warn(Date.now() + " No callback specified after send request for client device serial number");
             });
     },
 
@@ -848,7 +858,9 @@ DeviceProfile_ANTFS.prototype = {
                 });
         } else {
             var data = Buffer.concat([authMsg,authenticationString]);
-            this.nodeInstance.ANT.sendBurstTransfer(channelNr, data, function error(error) { console.log("Failed to send burst transfer with request for pairing", error); },
+            this.nodeInstance.ANT.sendBurstTransfer(channelNr, data, function error(error) {
+                console.log("Failed to send burst transfer with request for pairing", error);
+            },
                 function success() { console.log("Sent burst transfer with request for pairing", data); });
         }
     },
@@ -875,7 +887,7 @@ DeviceProfile_ANTFS.prototype = {
 
     broadCastDataParser: function (data) {
         var beaconID = data[4], channelNr = data[3],
-            beacon;
+            beacon, self = this;
         // Check for valid beacon ID 0x43 , p. 45 ANT-FS Technical Spec.
 
         if (beaconID !== DeviceProfile_ANTFS.prototype.BEACON_ID)
@@ -884,12 +896,12 @@ DeviceProfile_ANTFS.prototype = {
 
             // If we not have updated channel id, then get it
 
-            beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data);
+            beacon = self.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data);
             console.log(Date.now() + " " + beacon.toString());
 
             // LINK LAYER
             if (beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
-                this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
+                self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
 
                 switch (beacon.authenticationType) {
                     case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
@@ -899,9 +911,9 @@ DeviceProfile_ANTFS.prototype = {
                         //console.log("LINK MSG. PAYLOAD", linkMsg);
 
                         // Do not enter this region more than once (we can get 8 beacon msg. pr sec...)
-                        if (typeof this.deviceProfile.sendingLINK === "undefined") {
-                            this.deviceProfile.sendingLINK = true;
-                            this.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(this);
+                        if (typeof self.deviceProfile.sendingLINK === "undefined") {
+                            self.deviceProfile.sendingLINK = true;
+                            self.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(self);
                         }
 
                         break;
@@ -919,15 +931,16 @@ DeviceProfile_ANTFS.prototype = {
 
                 // Is authentication beacon for us?
 
-                if (beacon.hostSerialNumber !== this.nodeInstance.ANT.serialNumber)
-                    console.warn("Authentication beacon was for ", beacon.hostSerialNumber, ", our device serial number is ", this.nodeInstance.ANT.serialNumber);
+                if (beacon.hostSerialNumber !== self.nodeInstance.ANT.serialNumber)
+                    console.warn("Authentication beacon was for ", beacon.hostSerialNumber, ", our device serial number is ", self.nodeInstance.ANT.serialNumber);
                 else {
-                    if (typeof this.deviceProfile.sendingAUTH_CLIENT_SN === "undefined") {
-                        this.deviceProfile.sendingAUTH_CLIENT_SN = true;
+                    if (typeof self.deviceProfile.sendingAUTH_CLIENT_SN === "undefined") {
+                        self.deviceProfile.sendingAUTH_CLIENT_SN = true;
                         // Observation: client device will transmit AUTHENTICATION beacon for 10 seconds after receiving this request
-                        //this.nodeInstance.deviceProfile_ANTFS.sendRequestForClientDeviceSerialNumber.call(this);
-                        //this.nodeInstance.deviceProfile_ANTFS.sendRequestForPairing.call(this,DeviceProfile_ANTFS.prototype.FRIENDLY_NAME);
-                        this.nodeInstance.deviceProfile_ANTFS.sendRequestWithPasskey.call(this,new Buffer([0x36,0x58,0xb2,0xa7,0x8b,0x3d,0x2a,0x98]));
+                        self.nodeInstance.deviceProfile_ANTFS.sendRequestForClientDeviceSerialNumber.call(self, function () {
+                            self.nodeInstance.deviceProfile_ANTFS.sendRequestForPairing.call(self,DeviceProfile_ANTFS.prototype.FRIENDLY_NAME);
+                            //self.nodeInstance.deviceProfile_ANTFS.sendRequestWithPasskey.call(self, new Buffer([0x36, 0x58, 0xb2, 0xa7, 0x8b, 0x3d, 0x2a, 0x98]));
+                        });
                     } else
                         console.log("SKIPPING AUTH BEACON, waiting for request for client device serial number");
                     
@@ -1561,7 +1574,7 @@ Channel.prototype = {
                  self = this;
 
              channelID.toString = function () {
-                 return "Channel nr. " + channelID.channelNumber + " device nr. " + channelID.deviceNumber + " type " + channelID.deviceTypeID + " transmission type " + self.parseTransmissionType(channelID.transmissionType);
+                 return "Channel nr. " + channelID.channelNumber + " device nr. " + channelID.deviceNumber + " device type " + channelID.deviceTypeID + " transmission type " + self.parseTransmissionType(channelID.transmissionType);
              }
 
              return channelID;
@@ -1689,6 +1702,7 @@ Channel.prototype = {
                      if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data)) {
                          if (antInstance.retryQueue[channelNr].length >= 1) {
                              resendMsg = antInstance.retryQueue[channelNr].shift();
+                             clearTimeout(resendMsg.timeoutID); // No need to call timeout callback now
                              if (typeof resendMsg.EVENT_TRANSFER_TX_COMPLETED_CB === "function")
                                  resendMsg.EVENT_TRANSFER_TX_COMPLETED_CB();
                              else
@@ -1698,23 +1712,13 @@ Channel.prototype = {
 
                      } else if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_FAILED, data)) {
                          if (antInstance.retryQueue[channelNr].length >= 1) {
-                             console.log(Date.now() + " TRANSFER FAILED - retrying", antInstance.retryQueue[channelNr][0]);
+                             
                              resendMsg = antInstance.retryQueue[channelNr][0];
-                             resendMsg.retry++;
-                             if (resendMsg.retry <= ANT.prototype.TX_DEFAULT_RETRY) {
+                             resendMsg.retryCB();
 
-                                 antInstance.sendOnly(resendMsg.message, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
-                                     function error() { console.log(Date.now() + " Failed to resend ", resendMsg); },
-                                     function success() { console.log(Date.now() + " Resent ", resendMsg); });
-                             } else {
-                                 console.log(Date.now() + " Reached maximum number retries for ", resendMsg);
-                                 if (typeof resendMsg.EVENT_TRANSFER_TX_FAILED_CB === "function")
-                                     resendMsg.EVENT_TRANSFER_TX_FAILED_CB();
-                                 else
-                                     console.log(Date.now() + " No transfer failed callback specified");
                              }
                          }
-                     }
+                     
                     
                      // Call channel event/response-handler for each channel
                      
@@ -2691,23 +2695,62 @@ Content = Buffer
         // TRANSFER_TX_COMPLETED channel event if successfull, or TX_TRANSFER_FAILED -> msg. failed to reach master or response from master failed to reach the slave -> slave may retry
         // 3rd option : GO_TO_SEARCH is received if channel is droppped -> channel should be unassigned
          sendAcknowledgedData: function (ucChannel, pucBroadcastData, errorCallback, successCallback) {
-             var buf = Buffer.concat([new Buffer([ucChannel]), pucBroadcastData]), self = this;
-
-             var ack_msg = self.create_message(ANT.prototype.ANT_MESSAGE.acknowledged_data, buf);
+             var buf = Buffer.concat([new Buffer([ucChannel]), pucBroadcastData]), self = this,
+                 ack_msg = self.create_message(ANT.prototype.ANT_MESSAGE.acknowledged_data, buf),
+                 resendMsg;
 
              // Add to retry queue -> will only be of length === 1
-             this.retryQueue[ucChannel].push({ message: ack_msg, retry: 0, EVENT_TRANSFER_TX_COMPLETED_CB : successCallback, EVENT_TRANSFER_TX_FAILED_CB : errorCallback, timestamp : Date.now() });
+             resendMsg = {
+                 message: ack_msg,
+                 timeoutRetry : 0,
+                 retry: 0,
+                 EVENT_TRANSFER_TX_COMPLETED_CB: successCallback,
+                 EVENT_TRANSFER_TX_FAILED_CB: errorCallback,
+                 
+                 timestamp: Date.now()
+             };
+            
+             this.retryQueue[ucChannel].push(resendMsg);
 
-             // Two-levels of transfer : 1. from app. to ANT via libusb and 2. over RF 
-             this.sendOnly(ack_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, 
-                 function error(error) {
-                     console.log(Date.now() + " Failed to send acknowledged data packet to ANT engine, due to problems with libusb <-> device",error);
-                     if (typeof errorCallback === "function")
-                         errorCallback();
-                     else
-                         console.warn(Date.now() + " No transfer failed callback specified");
-                 },
-                 function success() { console.log(Date.now()+ " Sent acknowledged data packet to ANT engine for transmission over RF"); });
+             
+             //console.log(Date.now() + " SETTING TIMEOUT ");
+
+             resendMsg.timeoutCB = function () {
+                 //console.log(Date.now() + "TIMEOUT HANDLER FOR EVENT_TRANSFER_TX_COMPLETED/FAILED - NOT IMPLEMENTED");
+                 resendMsg.timeoutRetry++;
+                 if (resendMsg.timeoutRetry <= ANT.prototype.TX_DEFAULT_RETRY)
+                     send();
+                 else
+                     console.log(Date.now() + " Reached maxium number of timeout retries");
+             };
+            
+
+             resendMsg.retryCB = function send() {
+
+                 if (resendMsg.timeoutID)  // If we already have a timeout running, clear it and reset
+                     clearTimeout(resendMsg.timeoutID);
+
+                 resendMsg.timeoutID = setTimeout(resendMsg.timeoutCB, 500);
+                 resendMsg.retry++;
+
+                 if (resendMsg.retry <= ANT.prototype.TX_DEFAULT_RETRY) {
+                     resendMsg.lastRetryTimestamp = Date.now();
+                     // Two-levels of transfer : 1. from app. to ANT via libusb and 2. over RF 
+                     self.sendOnly(ack_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
+                         function error(error) {
+                             console.log(Date.now() + " Failed to send acknowledged data packet to ANT engine, due to problems with libusb <-> device", error);
+                             if (typeof errorCallback === "function")
+                                 errorCallback();
+                             else
+                                 console.warn(Date.now() + " No transfer failed callback specified");
+                         },
+                         function success() { console.log(Date.now() + " Sent acknowledged data packet to ANT engine for transmission over RF"); });
+                 } else
+                     console.error(Date.now() + "Reached maxium number of retries of ", msg.friendly);
+             };
+
+             resendMsg.retryCB();
+
              
          },
 
