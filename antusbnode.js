@@ -576,7 +576,7 @@ DeviceProfile_ANTFS.prototype = {
                             // Packet 2 : ANT-FS RESPONSE           44 84 01 08 00 00 00 00 
                             // Packet 3 : Authentication String :   36 58 b2 a7 8b 3d 2a 98 
                             
-                            if (authenticate_response.responseType === 0x01) // Accept
+                            if (authenticate_response.responseType === 0x01) // Accept of pairing request or the provided passkey
                             {
                                 if (authenticate_response.authenticationStringLength > 0)
                                     authenticate_response.authenticationString = data.slice(16, 16 + authenticate_response.authenticationStringLength);
@@ -584,7 +584,7 @@ DeviceProfile_ANTFS.prototype = {
 
                             if (authenticate_response.responseType === 0x02) // Reject
                             {
-                                console.log("Reject of authorization not implemented");
+                                console.log("Authorization rejected (pairing not accepted or wrong passkey provided)");
                             }
 
                             // add authenticateResponse to device profile instance
@@ -668,44 +668,44 @@ DeviceProfile_ANTFS.prototype = {
 
     channelResponseEvent : function (data)
     {
-        console.log(Date.now() + " Got channelResponseEvent on ANT-FS channel ", data);
+        //console.log(Date.now() + " Got channelResponseEvent on ANT-FS channel ", data);
 
-        // This === channelConfiguration
-        //console.log("THIS", this);
+        //// This === channelConfiguration
+        ////console.log("THIS", this);
 
-        switch (this.deviceProfile.state) {
-            // LINK layer
-            case DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER:
-                console.log("IN LINK LAYER");
+        //switch (this.deviceProfile.state) {
+        //    // LINK layer
+        //    case DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER:
+        //        console.log("IN LINK LAYER");
 
-                if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data) && this.deviceProfile.sendingLINK) {
-                    //this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER; // Expect AUTHENTICATION BEACON from client
-                    delete this.deviceProfile.sendingLINK;
-                    console.log("YIPPI, got event transfer completed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                } else
-                    delete this.deviceProfile.sendingLINK; // Resend link command
+        //        if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data) && this.deviceProfile.sendingLINK) {
+        //            //this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER; // Expect AUTHENTICATION BEACON from client
+        //            delete this.deviceProfile.sendingLINK;
+        //            console.log("YIPPI, got event transfer completed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        //        } else
+        //            delete this.deviceProfile.sendingLINK; // Resend link command
 
-                //if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_FAILED, data))
-                //    console.log("YIPPI, got event transfer FAILED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        //        //if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_FAILED, data))
+        //        //    console.log("YIPPI, got event transfer FAILED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
 
-                break;
+        //        break;
 
-            case DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER:
-                console.log("IN AUTHENTICATION LAYER");
+        //    case DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER:
+        //        console.log("IN AUTHENTICATION LAYER");
 
 
-                //if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data) && this.deviceProfile.sendingLINK) {
-                //    //this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER; // Expect AUTHENTICATION BEACON from client
-                //    delete this.deviceProfile.sendingLINK;
-                //    console.log("YIPPI, got event transfer completed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-                //} else
-                //    delete this.deviceProfile.sendingLINK; // Resend link command
-                break;
+        //        //if (this.nodeInstance.ANT.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data) && this.deviceProfile.sendingLINK) {
+        //        //    //this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER; // Expect AUTHENTICATION BEACON from client
+        //        //    delete this.deviceProfile.sendingLINK;
+        //        //    console.log("YIPPI, got event transfer completed!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+        //        //} else
+        //        //    delete this.deviceProfile.sendingLINK; // Resend link command
+        //        break;
 
-            default:
-                console.log("LAYER for state %d not implemented", this.deviceProfile.state);
-                break;
-        }
+        //    default:
+        //        console.log("LAYER for state %d not implemented", this.deviceProfile.state);
+        //        break;
+        //}
 
 
     },
@@ -733,7 +733,7 @@ DeviceProfile_ANTFS.prototype = {
 
         beaconInfo.dataAvailable = beaconInfo.status1 & 0x20 ? true : false // Bit 5
         beaconInfo.uploadEnabled = beaconInfo.status1 & 0x10 ? true : false, // Bit 4
-        beaconInfo.pairingEnabled = beaconInfo.status1 & 0x8 ? true : false, // Bit 3
+        beaconInfo.pairingEnabled = beaconInfo.status1 & 0x08 ? true : false, // Bit 3
         beaconInfo.beaconChannelPeriod = beaconInfo.status1 & 0x7,// Bit 2-0
 
         beaconInfo.clientDeviceState = beaconInfo.status2 & 0x0F; // Bit 3-0 (0100-1111 reserved), bit 7-4 reserved
@@ -765,7 +765,7 @@ DeviceProfile_ANTFS.prototype = {
             else
                 status1Str += "-Pairing ";
 
-            status1Str +=  DeviceProfile_ANTFS.prototype.BEACON_CHANNEL_PERIOD[beaconInfo.beaconChannelPeriod];
+            status1Str += "("+beaconInfo.status1+") "+ DeviceProfile_ANTFS.prototype.BEACON_CHANNEL_PERIOD[beaconInfo.beaconChannelPeriod];
 
             return status1Str;
 
@@ -788,12 +788,12 @@ DeviceProfile_ANTFS.prototype = {
         var channelNr = this.number, self = this;
         var linkMsg = this.deviceProfile.ANTFSCOMMAND_Link(ANT.prototype.ANTFS_FREQUENCY, DeviceProfile_ANTFS.prototype.BEACON_CHANNEL_PERIOD.Hz8, this.nodeInstance.ANT.serialNumber);
         this.nodeInstance.ANT.sendAcknowledgedData(channelNr, linkMsg,
-            function error(error) {
-                console.log(Date.now() + " Could not send ANT-FS link command ", error);
+            function error() {
+                console.log(Date.now() + " Failed to send ANT-FS link command to device");
                 delete self.deviceProfile.sendingLINK;
             },
             function success() {
-                console.log(Date.now() + " ANT-FS link command sent.");
+                console.log(Date.now() + " ANT-FS link command acknowledged by device.");
                
             });
     },
@@ -809,8 +809,8 @@ DeviceProfile_ANTFS.prototype = {
         var authMsg = this.deviceProfile.ANTFSCOMMAND_Authentication(DeviceProfile_ANTFS.prototype.AUTHENTICATE_COMMAND.REQUEST_CLIENT_DEVICE_SERIAL_NUMBER,0, this.nodeInstance.ANT.serialNumber);
         // It's OK to send it as an acknowledgedData if authentication string length is 0, otherwise a burst must be used
         this.nodeInstance.ANT.sendAcknowledgedData(channelNr, authMsg,
-            function error(error) {
-                console.log(Date.now() + " Could not send request for client device serial number ", error);
+            function error() {
+                console.log(Date.now() + " Could not send request for client device serial number ");
                 delete self.deviceProfile.sendingAUTH_CLIENT_SN; // Allow resend
             },
             function success() {
@@ -822,7 +822,6 @@ DeviceProfile_ANTFS.prototype = {
     // Pairing request sent to client device, if friendlyname is provided its sent as a bulk data request otherwise acknowledged
     sendRequestForPairing : function (friendlyName)
     {
-
         var channelNr = this.number, self = this, authStringLength = 0, authenticationString;
         
         if (typeof friendlyName === "undefined")
@@ -839,17 +838,39 @@ DeviceProfile_ANTFS.prototype = {
         if (authStringLength === 0) {
             // It's OK to send it as an acknowledgedData if authentication string length is 0, otherwise a burst must be used
             this.nodeInstance.ANT.sendAcknowledgedData(channelNr, authMsg,
-                function error(error) {
-                    console.log(Date.now() + " Could not send acknowledged message request for pairing for unknown ANT-FS host ", error);
+                function error() {
+                    console.log(Date.now() + " Could not send acknowledged message request for pairing for unknown ANT-FS host ");
                     delete self.deviceProfile.sendingAUTH_CLIENT_SN; // Allow resend
                 },
                 function success() {
                     console.log(Date.now() + " Request for pairing sent as acknowledged message for unknown ANT-FS host.");
 
                 });
-        } else
-            console.warn("BULK transfer for request for pairing not implemented!");
+        } else {
+            var data = Buffer.concat([authMsg,authenticationString]);
+            this.nodeInstance.ANT.sendBurstTransfer(channelNr, data, function error(error) { console.log("Failed to send burst transfer with request for pairing", error); },
+                function success() { console.log("Sent burst transfer with request for pairing", data); });
+        }
+    },
 
+    sendRequestWithPasskey : function (passkey)
+    {
+        var authStringLength, authMsg, data, authenticationString, channelNr = this.number, self = this;
+
+        if (typeof passkey === "undefined") {
+            console.warn("No passkey specified");
+            return;
+        }
+        else {
+            authStringLength = passkey.length;
+            authenticationString = passkey;
+        }
+
+        authMsg = this.deviceProfile.ANTFSCOMMAND_Authentication(DeviceProfile_ANTFS.prototype.AUTHENTICATE_COMMAND.REQUEST_PASSKEY_EXCHANGE, authStringLength, this.nodeInstance.ANT.serialNumber);
+
+        data = Buffer.concat([authMsg, authenticationString]);
+        this.nodeInstance.ANT.sendBurstTransfer(channelNr, data, function error(error) { console.log("Failed to send burst transfer with passkey", error); },
+            function success() { console.log("Sent burst transfer with passkey", data); });
     },
 
     broadCastDataParser: function (data) {
@@ -901,17 +922,22 @@ DeviceProfile_ANTFS.prototype = {
                 if (beacon.hostSerialNumber !== this.nodeInstance.ANT.serialNumber)
                     console.warn("Authentication beacon was for ", beacon.hostSerialNumber, ", our device serial number is ", this.nodeInstance.ANT.serialNumber);
                 else {
-                    //console.log("CLIENT AUTHENTICATION STATE NOT IMPLEMENTED");
                     if (typeof this.deviceProfile.sendingAUTH_CLIENT_SN === "undefined") {
                         this.deviceProfile.sendingAUTH_CLIENT_SN = true;
                         // Observation: client device will transmit AUTHENTICATION beacon for 10 seconds after receiving this request
                         //this.nodeInstance.deviceProfile_ANTFS.sendRequestForClientDeviceSerialNumber.call(this);
-                        this.nodeInstance.deviceProfile_ANTFS.sendRequestForPairing.call(this);
+                        //this.nodeInstance.deviceProfile_ANTFS.sendRequestForPairing.call(this,DeviceProfile_ANTFS.prototype.FRIENDLY_NAME);
+                        this.nodeInstance.deviceProfile_ANTFS.sendRequestWithPasskey.call(this,new Buffer([0x36,0x58,0xb2,0xa7,0x8b,0x3d,0x2a,0x98]));
                     } else
                         console.log("SKIPPING AUTH BEACON, waiting for request for client device serial number");
                     
 
                 }
+            } else if (beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER) {
+                this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER;
+                // If no transmission takes place on the established link, client will close channel in 10 seconds and return to LINK state.
+                // p. 56 in ANT-FS spec. PING-command 0x05 can be sent to keep alive link to reset client device connection timer
+                console.log("TRANSPORT LAYER not implemented");
             }
                
         }
@@ -1154,100 +1180,7 @@ Node.prototype = {
            
    },
 
-   findLinkBeacon : function(timeout, maxRetries, errorCallback) {
-      
-        var msgId, beaconId;
-        var linkBeaconFound = false;
-        var maxReceiveErrorRetries = maxRetries, retryNr = 0;
-
-        ant.timeout = timeout;
-
-        // Observation -- too small buffer gives "LIBUSB_TRANSFER_STALL"
-   
-        function retry() {
-            if (retryNr > maxReceiveErrorRetries)  // Stop recursion...
-                errorCallback();
-            else
-                inEP.transfer(ANT.prototype.DEFAULT_ENDPOINT_PACKET_SIZE, function (error, data) {
-                    if (error) {
-                        console.log(Date.now() + "Receive: " + error + ", retrying search for LINK beacon...");
-                        retryNr++; // Only incremented on error
-                        retry(); // Recursion
-                    }
-                    else {
-                        // console.log(data);
-                        msgId = data[2];
-
-                        if (data.length > 5)
-                            beaconId = data[4];
-
-                        if (msgId === ANT_MESSAGE.broadcast_data.id && beaconId === DeviceProfile_ANTFS.prototype.BEACON_ID) { // ANTFS Beacon
-
-                            console.log(data);
-
-                            ANTFS_HOST.beaconInfo = parseClientBeacon(data);  // Update beacon info.
-                            console.log(Date.now() + " " + ANTFS_HOST.beaconInfo.toString(), linkBeaconFound);
-                            // getUpdatedChannelID();
-                            //// ANT_Request(true, ANT_MESSAGE.set_channel_id.id);  // Get updated channel ID parameters
-                            if (ANTFS_HOST.beaconInfo.clientDeviceState === ANTFS_STATE.LINK_LAYER && !linkBeaconFound) {
-                                ANTFS_HOST.state = ANTFS_STATE.LINK_LAYER;
-                                linkBeaconFound = true;
-                                console.log("LINK beacon found");
-
-                                // 9.2 p. 40 "ANT-FS connections should be established on a different RF channel frequency than the initial Link State, or pre-defined RF channel freq. such as the ANT+ freq. (2457Mhz)
-
-                                // Send LINK command request to device (its sent immedialy upon receiving next broadcast/link beacon from device)
-                                send(ANT_SendAcknowledgedData(false, 0, ANTFSCOMMAND_Link(Host.prototype.DEFAULT_CHANNEL_FREQUENCY, BEACON_CHANNEL_PERIOD.Hz8, ANTFS_HOST.serialNumber)), DEFAULT_RETRY, 30000,
-                                                                 undefined,
-                                                                   function () { console.log("Failed to send LINK command to device."); errorCallback(); },
-                                                                    function (data) {
-                                                                        console.log("Sent link command");
-                                                                        //console.log(data); parse_response(data);
-                                                                        //retry();
-                                                                        //send(ANT_SetChannelRFFreq(false, 0, ALTERNATIVE_CHANNEL_FREQUENCY),
-                                                                        //    DEFAULT_RETRY, ANT_DEVICE_TIMEOUT,
-                                                                        //    function (data) { return isResponseNoError(data, ANT_MESSAGE.set_channel_RFFreq.id); },
-                                                                        //    function () { console.log("Failed to change RF frequency to " + ALTERNATIVE_CHANNEL_FREQUENCY + " MHz") },
-                                                                        //    function (data) {
-                                                                        //        console.log("Set channel RF frequency OK - now on " + ALTERNATIVE_CHANNEL_FREQUENCY + " MHz");
-                                                                        //    });
-                                                                    }, true);
-
-
-
-
-                                //parse_response(data);
-                                //findLinkBeacon();
-                                //if (!validationCallback(data)) {
-                                //    // console.log("Expected startup notification after reset command, but got " + RESPONSE_EVENT_CODES[data[2]] + ", retrying...");
-                                //    retry(--maxRetries);
-                                //} else
-                                //    successCallback(data);
-
-                            } else if (ANTFS_HOST.beaconInfo.clientDeviceState === ANTFS_STATE.AUTHENTICATION_LAYER && linkBeaconFound && ANTFS_HOST.beaconInfo.raw.hostSerialNumber === ANTFS_HOST.serialNumber) {
-                                ANTFS_HOST.state = ANTFS_STATE.AUTHENTICATION_LAYER;
-                                linkBeaconFound = false;
-                                // Observation - FR 910XT will send AUTH beacon for 3 seconds, then power save (gives EVENT_RX_FAIL/GO_TO_SEARCH), and stransferring LINK beacon again
-                                console.log(Date.now() + " Got AUTHENTICATION beacon for host serial number: " + ANTFS_HOST.serialNumber,linkBeaconFound);
-
-                            } else if (ANTFS_HOST.beaconInfo.clientDeviceState === ANTFS_STATE.BUSY) {
-                                console.log(Date.now() + " Device is busy (processing previous command)");
-
-                            }
-                            else {
-                                parse_response(data);
-                                // Just skip other messages (EVENT_RX_FAIL/EVENT_RX_GO_TO_SEARCH -> probably due to power saving on device LINK beacon is sent in a small window)
-                            }
-                        }
-                    }
-                    retry();
-                });
-        }
-
-        retry();
-        
-    }
-
+  
 };
 
 function Network(nr, key) {
@@ -1372,17 +1305,20 @@ Channel.prototype = {
         // this.host = host;
         this.idVendor = idVendor;
         this.idProduct = idProduct;
-        
+        this.retryQueue = {}; // Queue of packets that are sent as acknowledged using the stop-and wait ARQ-paradigm, initialized when parsing capabilities (number of ANT channels of device) -> a retry queue for each channel
     }
 
     ANT.prototype = {
 
         DEFAULT_ENDPOINT_PACKET_SIZE : 64,  // Based on info in nRF24AP2 data sheet
 
-         SYNC : 0xA4, // Every raw ANT message starts with SYNC
+        SYNC : 0xA4, // Every raw ANT message starts with SYNC
 
         ANT_DEVICE_TIMEOUT: 3 * 7, // Direct USB ANT communication  (normal 5-7 ms. processing time on device)
-        ANT_DEFAULT_RETRY : 2,
+        ANT_DEFAULT_RETRY: 2,
+
+        TX_DEFAULT_RETRY : 3, // Retry of RF acknowledged packets
+
         INFINITE_SEARCH: 0xFF,
 
         ANT_FREQUENCY: 57,
@@ -1720,13 +1656,15 @@ Channel.prototype = {
 
              var antInstance = this,
                  msgID = data[2],
+                 msgCode,
                  channelNr,
                  channelID,
                  sequenceNr,
                  msgStr = "",
                  msgLength,
-                 payloadData;
-
+                 payloadData,
+                 resendMsg;
+             
              switch (msgID) {
                 
                      // Notifications
@@ -1745,9 +1683,41 @@ Channel.prototype = {
 
                  case ANT.prototype.ANT_MESSAGE.channel_response.id:
                      msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " + antInstance.parseChannelResponse(data);
+                     channelNr = data[3];
+
+                     // Handle retry of acknowledged data
+                     if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_COMPLETED, data)) {
+                         if (antInstance.retryQueue[channelNr].length >= 1) {
+                             resendMsg = antInstance.retryQueue[channelNr].shift();
+                             if (typeof resendMsg.EVENT_TRANSFER_TX_COMPLETED_CB === "function")
+                                 resendMsg.EVENT_TRANSFER_TX_COMPLETED_CB();
+                             else
+                                 console.log(Date.now() + " No transfer complete callback specified");
+                             //console.log(Date.now() + " TRANSFER COMPLETE - removing from retry-queue",resendMsg);
+                         }
+
+                     } else if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_TRANSFER_TX_FAILED, data)) {
+                         if (antInstance.retryQueue[channelNr].length >= 1) {
+                             console.log(Date.now() + " TRANSFER FAILED - retrying", antInstance.retryQueue[channelNr][0]);
+                             resendMsg = antInstance.retryQueue[channelNr][0];
+                             resendMsg.retry++;
+                             if (resendMsg.retry <= ANT.prototype.TX_DEFAULT_RETRY) {
+
+                                 antInstance.sendOnly(resendMsg.message, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT,
+                                     function error() { console.log(Date.now() + " Failed to resend ", resendMsg); },
+                                     function success() { console.log(Date.now() + " Resent ", resendMsg); });
+                             } else {
+                                 console.log(Date.now() + " Reached maximum number retries for ", resendMsg);
+                                 if (typeof resendMsg.EVENT_TRANSFER_TX_FAILED_CB === "function")
+                                     resendMsg.EVENT_TRANSFER_TX_FAILED_CB();
+                                 else
+                                     console.log(Date.now() + " No transfer failed callback specified");
+                             }
+                         }
+                     }
                     
                      // Call channel event/response-handler for each channel
-                     channelNr = data[3];
+                     
                      
                       antInstance.channelConfiguration[channelNr].channelResponseEvent(data);
 
@@ -2070,6 +2040,10 @@ Content = Buffer
    self.capabilities.toString = function () { return msg; }
 
    self.channelConfiguration = new Array(self.capabilities.maxNetworks);
+
+   // Init Retry queue of acknowledged data packets
+   for (var channelNr = 0; channelNr < self.capabilities.maxANTchannels; channelNr++)
+       self.retryQueue[channelNr] = [];
 
    return self.capabilities;
 
@@ -2721,8 +2695,20 @@ Content = Buffer
 
              var ack_msg = self.create_message(ANT.prototype.ANT_MESSAGE.acknowledged_data, buf);
 
-             // TO DO : this.send(ack_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, this.isResponseNoError, errorCallback, successCallback, false);
-             this.sendOnly(ack_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, successCallback);
+             // Add to retry queue -> will only be of length === 1
+             this.retryQueue[ucChannel].push({ message: ack_msg, retry: 0, EVENT_TRANSFER_TX_COMPLETED_CB : successCallback, EVENT_TRANSFER_TX_FAILED_CB : errorCallback, timestamp : Date.now() });
+
+             // Two-levels of transfer : 1. from app. to ANT via libusb and 2. over RF 
+             this.sendOnly(ack_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, 
+                 function error(error) {
+                     console.log(Date.now() + " Failed to send acknowledged data packet to ANT engine, due to problems with libusb <-> device",error);
+                     if (typeof errorCallback === "function")
+                         errorCallback();
+                     else
+                         console.warn(Date.now() + " No transfer failed callback specified");
+                 },
+                 function success() { console.log(Date.now()+ " Sent acknowledged data packet to ANT engine for transmission over RF"); });
+             
          },
 
          // Send an individual packet as part of a bulk transfer
@@ -2735,7 +2721,8 @@ Content = Buffer
 
              burst_msg = self.create_message(ANT.prototype.ANT_MESSAGE.burst_transfer_data, buf);
 
-             // Thought : what about transfer rate here? Maybe add timeout if there is a problem will buffer overload for the ANT engine
+             // Thought : what about transfer rate here? Maybe add timeout if there is a problem will burst buffer overload for the ANT engine
+             // We will get a EVENT_TRANFER_TX_START when the actual transfer over RF starts
              self.sendOnly(burst_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, successCallback);
          },
 
