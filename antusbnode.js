@@ -1330,7 +1330,7 @@ Channel.prototype = {
         ANT_DEVICE_TIMEOUT: 3 * 7, // Direct USB ANT communication  (normal 5-7 ms. processing time on device)
         ANT_DEFAULT_RETRY: 2,
 
-        TX_DEFAULT_RETRY : 3, // Retry of RF acknowledged packets
+        TX_DEFAULT_RETRY : 5, // Retry of RF acknowledged packets (including timeouts)
 
         INFINITE_SEARCH: 0xFF,
 
@@ -2715,14 +2715,14 @@ Content = Buffer
              
              //console.log(Date.now() + " SETTING TIMEOUT ");
 
-             resendMsg.timeoutCB = function () {
-                 //console.log(Date.now() + "TIMEOUT HANDLER FOR EVENT_TRANSFER_TX_COMPLETED/FAILED - NOT IMPLEMENTED");
-                 resendMsg.timeoutRetry++;
-                 if (resendMsg.timeoutRetry <= ANT.prototype.TX_DEFAULT_RETRY)
-                     send();
-                 else
-                     console.log(Date.now() + " Reached maxium number of timeout retries");
-             };
+             //resendMsg.timeoutCB = function () {
+             //    //console.log(Date.now() + "TIMEOUT HANDLER FOR EVENT_TRANSFER_TX_COMPLETED/FAILED - NOT IMPLEMENTED");
+             //    resendMsg.timeoutRetry++;
+             //    if (resendMsg.timeoutRetry <= ANT.prototype.TX_DEFAULT_RETRY)
+             //        send();
+             //    else
+             //        console.log(Date.now() + " Reached maxium number of timeout retries");
+             //};
             
 
              resendMsg.retryCB = function send() {
@@ -2730,7 +2730,7 @@ Content = Buffer
                  if (resendMsg.timeoutID)  // If we already have a timeout running, clear it and reset
                      clearTimeout(resendMsg.timeoutID);
 
-                 resendMsg.timeoutID = setTimeout(resendMsg.timeoutCB, 500);
+                 resendMsg.timeoutID = setTimeout(resendMsg.retryCB, 500);
                  resendMsg.retry++;
 
                  if (resendMsg.retry <= ANT.prototype.TX_DEFAULT_RETRY) {
