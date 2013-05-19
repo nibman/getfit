@@ -480,7 +480,8 @@ DeviceProfile_ANTFS.prototype = {
         UPLOAD: 0x0A,
         ERASE: 0x0B,
         UPLOAD_DATA: 0x0C,
-        AUTHENTICATE_RESPONSE : 0x84
+        AUTHENTICATE_RESPONSE : 0x84,
+        DOWNLOAD_RESPONSE : 0x89
     },
 
     // ANTFS TS p. 51
@@ -529,14 +530,42 @@ DeviceProfile_ANTFS.prototype = {
         REQUEST_PASSKEY_EXCHANGE : 0x03
     },
 
-    FRIENDLY_NAME : "ANT USB NODE.JS",
+    FRIENDLY_NAME: "ANT USB NODE.JS",
 
-    parseBurstData : function (data)
+    INITIAL_DOWNLOAD_REQUEST : {
+        CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER : 0x00,
+        NEW_TRANSFER : 0x01
+    },
+
+    DOWNLOAD_RESPONSE: {
+        REQUEST_OK : 0x00,
+        0x00: "Download Request OK",
+        0x01: "Data does not exist",
+        0x02: "Data exists but is not downloadable",
+        0x03: "Not ready to download",
+        0x04: "Request invalid",
+        0x05: "CRC incorrect"
+    },
+
+    RESERVED_FILE_INDEX : {
+        DIRECTORY_STRUCTURE: 0x00,
+        // 0xFC00 - 0xFFFD Reserved
+        COMMAND_PIPE: 0xFFFE,
+        // 0xFFFF - Reserved
+    },
+
+    parseBurstData : function (data, parser)
     {
-        var self = this, beacon, numberOfPackets = data / 8,
-            authenticate_response = {};
+        var self = this, beacon, numberOfPackets = data.length / 8,
+            authenticate_response = {}, packetNr,
+            download_response = {};
 
-        console.log("Got burst data in device profile ANT-FS", data);
+        //console.log("Got burst data in device profile ANT-FS", data);
+
+        console.log(Date.now() + " Received ", numberOfPackets, " packets with a total length of ", data.length, " bytes");
+
+        //for (packetNr = 0; packetNr < numberOfPackets; packetNr++)
+        //    console.log(packetNr, data.slice(packetNr * 8, 8 + packetNr * 8));
         
         if (data[0] !== DeviceProfile_ANTFS.prototype.BEACON_ID)
             console.error("Expected beacon id. (0x43) in the first packet of burst payload", data)
@@ -600,6 +629,59 @@ DeviceProfile_ANTFS.prototype = {
                             console.log(authenticate_response);
                             break;
 
+                        case DeviceProfile_ANTFS.prototype.COMMAND_ID.DOWNLOAD_RESPONSE:
+                            // Downloaded file is sent as bulk data is blocks
+                            // Packet 2
+                            download_response.response = data[10];
+                            download_response.responseFriendly = DeviceProfile_ANTFS.prototype.DOWNLOAD_RESPONSE[data[10]];
+
+                            if (download_response.response === DeviceProfile_ANTFS.prototype.DOWNLOAD_RESPONSE.REQUEST_OK) {
+                                
+                                download_response.totalRemainingLength = data.readUInt32LE(12);
+
+                                // Packet 3
+                                download_response.dataOffset = data.readUInt32LE(16);
+                                
+                                download_response.fileSize = data.readUInt32LE(20);
+
+                                // Packet 4:N-1
+                                download_response.data = data.slice(24, -8);
+
+                                if (download_response.dataOffset === 0)
+                                    self.deviceProfile.downloadFile = download_response.data; // First block of data
+                                else
+                                    self.deviceProfile.downloadFile = Buffer.concat([self.deviceProfile.downloadFile, download_response.data]);
+
+                                
+                                // TO DO : verify CRC for this data block
+                               
+
+                                // Parse body when last block is received
+                                if (typeof parser === "function" && download_response.totalRemainingLength === 0)
+                                    parser.call(self, self.deviceProfile.downloadFile);
+                                else if (typeof parser === "undefined" && download_response.totalRemainingLength === 0)
+                                    console.log("Downloaded %d bytes", self.deviceProfile.downloadFile.length);
+
+                                // If more data remains, send a new continuation request for more
+                                if (download_response.totalRemainingLength > 0) {
+                                    // Packet N
+                                    download_response.CRC = data.readUInt16LE(data.length - 2);
+                                    console.log("CRC", download_response.CRC, "new offset", download_response.dataOffset + download_response.data.length);
+                                    // sendDownloadRequest : function (dataIndex,dataOffset,initialRequest,CRCSeed,maximumBlockSize, parser)
+                                    self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, download_response.dataOffset + download_response.data.length,
+                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, download_response.CRC, 0, parser);
+                                    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 14, download_response.dataOffset + download_response.data.length,
+                                    //    DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, download_response.CRC, 0, parser);
+
+
+                                }
+
+                                console.log(Date.now(), download_response);
+
+                            } else
+                                console.log(Date.now()+" Download response : ",download_response.responseFriendly);
+                            break;
+
                         default:
                             console.warn("Not implemented parsing of ANT-FS Command response code ", data[9]);
                             break;
@@ -609,6 +691,38 @@ DeviceProfile_ANTFS.prototype = {
 
             
         }
+    },
+
+    ANTFSCOMMAND_Download : function (dataIndex,dataOffset,initialRequest,CRCSeed,maximumBlockSize)
+    {
+        //console.log("ANTFSCOMMAND_Download",dataIndex, dataOffset, initialRequest, CRCSeed, maximumBlockSize);
+
+        var payload = new Buffer(16);
+
+        // Packet 1
+
+        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
+        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.DOWNLOAD;
+        payload.writeUInt16LE(dataIndex, 2);
+        payload.writeUInt32LE(dataOffset, 4);
+
+        // Packet 2
+
+        payload[8] = 0;
+        payload[9] = initialRequest;
+
+        if (initialRequest === DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER) {
+            if (CRCSeed !== 0)
+                console.warn("CRC seed specified is ", CRCSeed, " for new transfer CRC seed should be set to 0 -> forced to 0 now");
+            payload.writeUInt16LE(0, 10); // Force CRC seed to 0
+        }
+        else
+            payload.writeUInt16LE(CRCSeed, 10);
+
+        payload.writeUInt32LE(maximumBlockSize, 12);
+
+        return payload;
+        
     },
     
     // host serial number is available on antInstance.serialNumber if getDeviceSerialNumber has been executed
@@ -885,6 +999,74 @@ DeviceProfile_ANTFS.prototype = {
             function success() { console.log("Sent burst transfer with passkey", data); });
     },
 
+    // Parses ANT-FS directory at reserved file index 0
+    parseDirectory : function (data)
+    {
+        var self = this, numberOfFiles, fileNr, file, structureLength, addIndex;
+
+        self.deviceProfile.directory = {
+            header : {
+                version: {
+                    major: data[0] & 0xF0,
+                    minor: data[0] & 0xF0
+                },
+                structureLength: data[1],
+                timeFormat: data[2],
+                //reserved -5 bytes pad 0
+                currentSystemTime: data.readUInt32LE(8),
+                directoryLastModifiedDateTime: data.readUInt32LE(12),
+            },
+            index : []
+        }
+
+        structureLength = self.deviceProfile.directory.header.structureLength;
+        numberOfFiles = (data.length - 2 * 8) / structureLength;
+        console.log("Number of files in directory", numberOfFiles);
+
+        for (fileNr = 0; fileNr < numberOfFiles; fileNr++) {
+            addIndex = fileNr * structureLength;
+            file = {
+                buffer : data.slice(16+addIndex,16+addIndex+structureLength),
+                index: data.readUInt16LE(16 + addIndex),
+                dataType: data[18 + addIndex],
+                identifier: data.readUInt32LE(19 + addIndex) & 0x00FFFFFF,
+                dataTypeFlags: data[22 + addIndex],
+                generalFlags: {
+                    read: data[23 + addIndex] & 0x80 ? true : false,
+                    write: data[23 + addIndex] & 0x40 ? true : false,
+                    erase: data[23 + addIndex] & 0x20 ? true : false,
+                    archive: data[23 + addIndex] & 0x10 ? true : false,
+                    append: data[23 + addIndex] & 0x08 ? true : false,
+                    crypto: data[23 + addIndex] & 0x04 ? true : false,
+                    //reserved bit 0-1
+                },
+                size: data.readUInt32LE(24 + addIndex),
+                date: data.readUInt32LE(28 + addIndex)
+            }
+            if (file.dataType === 0x80) // FIT 
+            {
+                file.dataTypeFriendly = 'FIT';
+                file.subType = data[19 + addIndex];
+                file.number = data.readUInt16LE(20 + addIndex);
+            }
+            console.log(file);
+            self.deviceProfile.directory.index.push(file);
+        }
+
+        //console.log(self.deviceProfile.directory);
+    },
+
+    sendDownloadRequest : function (dataIndex,dataOffset,initialRequest,CRCSeed,maximumBlockSize, parser)
+    {
+        var downloadMsg, channelNr = this.number, self = this;
+
+        downloadMsg = self.deviceProfile.ANTFSCOMMAND_Download(dataIndex, dataOffset, initialRequest, CRCSeed, maximumBlockSize);
+        self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error(error) { console.log("Failed to send burst transfer with download request to ANT engine", error); },
+           function success() {
+               //console.log("Sent burst transfer with download request to ANT engine", downloadMsg);
+           }, parser, "DownloadRequest");
+    },
+
     broadCastDataParser: function (data) {
         var beaconID = data[4], channelNr = data[3],
             beacon, self = this;
@@ -947,11 +1129,22 @@ DeviceProfile_ANTFS.prototype = {
 
                 }
             } else if (beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER) {
-                this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER;
+                self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER;
                 // If no transmission takes place on the established link, client will close channel in 10 seconds and return to LINK state.
                 // p. 56 in ANT-FS spec. PING-command 0x05 can be sent to keep alive link to reset client device connection timer
-                console.log("TRANSPORT LAYER not implemented");
-            }
+                
+                // Download directory at index 0
+                if (typeof self.deviceProfile.download === "undefined") {
+                    self.deviceProfile.download = true;
+                    self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
+                        DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
+                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0, self.nodeInstance.deviceProfile_ANTFS.parseDirectory);
+
+                    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
+                    //  14, 0,
+                    //  DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0);
+                }
+                }
                
         }
     }
@@ -1319,6 +1512,7 @@ Channel.prototype = {
         this.idVendor = idVendor;
         this.idProduct = idProduct;
         this.retryQueue = {}; // Queue of packets that are sent as acknowledged using the stop-and wait ARQ-paradigm, initialized when parsing capabilities (number of ANT channels of device) -> a retry queue for each channel
+        this.burstQueue = {}; // Queue outgoing burst packets and optionally adds a parser to the burst response
     }
 
     ANT.prototype = {
@@ -1676,7 +1870,9 @@ Channel.prototype = {
                  msgStr = "",
                  msgLength,
                  payloadData,
-                 resendMsg;
+                 resendMsg,
+                 burstMsg,
+                 burstParser;;
              
              switch (msgID) {
                 
@@ -1818,6 +2014,7 @@ Channel.prototype = {
                      channelNr = data[3] & 0x1F; // 5 lower bits
                      sequenceNr = (data[3] & 0xE0) >> 5; // 3 upper bits
                      msgLength = data[1];
+                  
 
                      if (msgLength == 9) {
 
@@ -1828,17 +2025,24 @@ Channel.prototype = {
                          payloadData = data.slice(4, 12);
                          // Assemble burst data packets on channelConfiguration for channel, assume sequence number are received in order ...
 
-                         console.log(payloadData);
+                        // console.log(payloadData);
 
                          if (sequenceNr === 0x00) // First packet 
+
                              antInstance.channelConfiguration[channelNr].burstData = payloadData; // Payload 8 bytes
+
                          else if (sequenceNr > 0x00)
+
                              antInstance.channelConfiguration[channelNr].burstData = Buffer.concat([antInstance.channelConfiguration[channelNr].burstData, payloadData]);
 
                          if (sequenceNr & 0x04) // msb set === last packet 
                          {
-                             //  console.log("Burst data:", antInstance.channelConfiguration[channelNr].burstData);
-                             antInstance.channelConfiguration[channelNr].parseBurstData(antInstance.channelConfiguration[channelNr].burstData);
+                             // console.log("Burst data:", antInstance.channelConfiguration[channelNr].burstData);
+                             burstMsg = antInstance.burstQueue[channelNr].shift();
+                             if (typeof burstMsg !== "undefined")
+                                 burstParser = burstMsg.parser;
+
+                             antInstance.channelConfiguration[channelNr].parseBurstData(antInstance.channelConfiguration[channelNr].burstData, burstParser);
                          }
                      }
                      else {
@@ -1855,7 +2059,8 @@ Channel.prototype = {
                      break;
              }
 
-             console.log(Date.now() + " Rx: ",data,msgStr);
+             if (msgID !== ANT.prototype.ANT_MESSAGE.burst_transfer_data.id) // Avoid burst logging -> gives performance problems
+                 console.log(Date.now() + " Rx: ", data, msgStr);
              //for (var byteNr = 0; byteNr < data.length; byteNr++) {
              //    if (byteNr === 0 && data[byteNr] === SYNC)
              //        console.log("Buffer index " + byteNr + ", value: " + data[byteNr] + " = SYNC");
@@ -2046,8 +2251,10 @@ Content = Buffer
    self.channelConfiguration = new Array(self.capabilities.maxNetworks);
 
    // Init Retry queue of acknowledged data packets
-   for (var channelNr = 0; channelNr < self.capabilities.maxANTchannels; channelNr++)
+   for (var channelNr = 0; channelNr < self.capabilities.maxANTchannels; channelNr++) {
        self.retryQueue[channelNr] = [];
+       self.burstQueue[channelNr] = [];
+   }
 
    return self.capabilities;
 
@@ -2746,7 +2953,7 @@ Content = Buffer
                          },
                          function success() { console.log(Date.now() + " Sent acknowledged data packet to ANT engine for transmission over RF"); });
                  } else
-                     console.error(Date.now() + "Reached maxium number of retries of ", msg.friendly);
+                     console.error(Date.now() + "Reached maxium number of retries of ", resendMsg.message.friendly);
              };
 
              resendMsg.retryCB();
@@ -2766,12 +2973,15 @@ Content = Buffer
 
              // Thought : what about transfer rate here? Maybe add timeout if there is a problem will burst buffer overload for the ANT engine
              // We will get a EVENT_TRANFER_TX_START when the actual transfer over RF starts
+             // p. 102 ANT Message Protocol and Usage rev 5.0 - "it is possible to 'prime' the ANT buffers with 2 (or 8, depending on ANT device) burst packet prior to the next channel period."
+             // "its important that the Host/ANT interface can sustain the maximum 20kbps rate"
+             
              self.sendOnly(burst_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback, successCallback);
          },
 
          // p. 98 in spec.
          // Sends bulk data
-         sendBurstTransfer: function (ucChannel, pucData, errorCallback, successCallback)
+         sendBurstTransfer: function (ucChannel, pucData, errorCallback, successCallback, parserCallback, messageFriendlyName)
          {
              var numberOfPackets = Math.ceil(pucData.length / 8),
                  packetNr,
@@ -2781,7 +2991,20 @@ Content = Buffer
                  packet,
                  self = this;
 
-             console.log("Burst transfer of %d packets on channel %d",numberOfPackets, ucChannel);
+             console.log("Burst transfer of %d packets on channel %d", numberOfPackets, ucChannel);
+
+             // Add to retry queue -> will only be of length === 1
+             burstMsg = {
+                 message: {
+                     buffer : pucData,
+                     friendlyName: messageFriendlyName
+                 },
+                 parser : parserCallback, // Handle burst response data, i.e directory at file index 0
+                 timestamp: Date.now()
+             };
+
+             console.log(burstMsg);
+             this.burstQueue[ucChannel].push(burstMsg);
              
              for (packetNr = 0; packetNr < numberOfPackets; packetNr++) {
 
@@ -2798,7 +3021,8 @@ Content = Buffer
                  else
                      packet = pucData.slice(packetNr*8, packetNr*8 + 8);
 
-                 self.sendBurstTransferPacket(channelNrField, packet, errorCallback, successCallback);
+                         self.sendBurstTransferPacket(channelNrField, packet, errorCallback, successCallback);
+                  
                 
               }
          },
