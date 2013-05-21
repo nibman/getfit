@@ -439,6 +439,7 @@ function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
     this.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER;
+    this.CRCUtil = new CRC();
 }
 
 DeviceProfile_ANTFS.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -559,7 +560,7 @@ DeviceProfile_ANTFS.prototype = {
     {
         var self = this, beacon, numberOfPackets = data.length / 8,
             authenticate_response = {}, packetNr,
-            download_response = {};
+            download_response = {}, currentCRCSeed;
            
         if (self.deviceProfile.timeoutForNextDataBlockID) {
             clearInterval(self.deviceProfile.timeoutForNextDataBlockID);
@@ -567,7 +568,7 @@ DeviceProfile_ANTFS.prototype = {
         }
         //console.log("Got burst data in device profile ANT-FS", data);
 
-        console.log(Date.now() + " Received ", numberOfPackets, " packets with a total length of ", data.length, " bytes");
+        //console.log(Date.now() + " Received ", numberOfPackets, " packets with a total length of ", data.length, " bytes");
 
         //for (packetNr = 0; packetNr < numberOfPackets; packetNr++)
         //    console.log(packetNr, data.slice(packetNr * 8, 8 + packetNr * 8));
@@ -670,8 +671,6 @@ DeviceProfile_ANTFS.prototype = {
                                     
                                 }
 
-                                // TO DO : verify CRC for this data block
-
 
                                 // If requested, parse body when last block is received (i.e index 0 = parseDirectory)
                                 if (typeof parser === "function" && download_response.totalRemainingLength === 0)
@@ -683,15 +682,28 @@ DeviceProfile_ANTFS.prototype = {
                                 if (download_response.totalRemainingLength > 0) {
                                     // Packet N
                                     download_response.CRC = data.readUInt16LE(data.length - 2);
-                                    self.deviceProfile.CRCSeed.push(download_response.CRC);
+                                    if (download_response.dataOffset === 0) {
+                                        currentCRCSeed = self.nodeInstance.deviceProfile_ANTFS.CRCUtil.CRC_Calc16(download_response.data);
+                                        self.deviceProfile.CRCSeed.push(currentCRCSeed);
+                                    } else {
+                                        currentCRCSeed = self.deviceProfile.CRCSeed[self.deviceProfile.CRCSeed.length - 1];
+                                        self.deviceProfile.CRCSeed.push(self.nodeInstance.deviceProfile_ANTFS.CRCUtil.CRC_UpdateCRC16(currentCRCSeed, download_response.data));
+                                        currentCRCSeed = self.deviceProfile.CRCSeed[self.deviceProfile.CRCSeed.length - 1];
+                                    }
+
+                                    if (download_response.CRC !== currentCRCSeed)
+                                        console.warn(Date.now() + " CRC included at end of bursted data block ", download_response.CRC, " does not match the calculated CRC-16 of data block ", currentCRCSeed);
+
+                                       // self.deviceProfile.CRCSeed.push(download_response.CRC);
                                     self.deviceProfile.dataLength.push(download_response.data.length);
                                     self.deviceProfile.dataOffset.push(download_response.dataOffset);
-                                   // console.log("CRC", download_response.CRC, "new offset", download_response.dataOffset + download_response.data.length);
+                                    //console.log("Test CRC",self.deviceProfile.CRCSeed[self.deviceProfile.CRCSeed.length-1]," CRC", download_response.CRC, "new offset", download_response.dataOffset + download_response.data.length);
                                     // sendDownloadRequest : function (dataIndex,dataOffset,initialRequest,CRCSeed,maximumBlockSize, parser)
                                     //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, download_response.dataOffset + download_response.data.length,
                                     //    DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, download_response.CRC, 0, parser);
+
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 18, download_response.dataOffset + download_response.data.length,
-                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, download_response.CRC, 0);
+                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
 
                                     
                                     self.deviceProfile.timeoutForNextDataBlockID = setInterval(function retry() {
@@ -700,7 +712,7 @@ DeviceProfile_ANTFS.prototype = {
                                             console.log(Date.now() + " Received no burst response for previous download request in about 3000 ms. Retrying " + self.deviceProfile.timeoutRetry);
 
                                             self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 18, download_response.dataOffset + download_response.data.length,
-                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, download_response.CRC, 0);
+                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
                                         } else {
                                             console.log(Date.now() + " Something is wrong with the link to the device. Cannot proceed.");
                                             process.kill(process.pid, 'SIGINT');
@@ -1163,11 +1175,10 @@ DeviceProfile_ANTFS.prototype = {
             else
                 self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error() { console.log(Date.now()+" Failed to send burst transfer with download request"); },
            function success() {
-               console.log(Date.now()+" Sent burst transfer with download request over RF", downloadMsg);
+              // console.log(Date.now()+" Sent burst transfer with download request over RF", downloadMsg);
            }, parser, "DownloadRequest index: " + dataIndex + " data offset: " + dataOffset + " initial request: " + initialRequest + "CRC seed: " + CRCSeed + "max. block size: " + maximumBlockSize);
         }
 
-       
         retry();
     },
 
@@ -1400,14 +1411,14 @@ Node.prototype = {
                        //console.log("Configuration of device profile SDM OK");
                        //self.ANT.open(0, function () { console.log("Could not open channel for HRM"); }, function () {
                        //    console.log("Open channel for HRM");
-                       //    self.ANT.open(2, function () { console.log("Could not open channel for SDM"); }, function () {
-                       //        console.log("Open channel for SDM");
+                          //self.ANT.open(2, function error() { console.log("Could not open channel for SDM"); }, function success() {
+                          //     console.log(Date.now()+ " Open channel for SDM");
                        //console.log(self.ANT.channelConfiguration);
                                self.ANT.open(1, function () { console.log("Could not open channel for ANT-FS"); }, function () {
-                                   console.log("Open channel for ANT-FS");
+                                   console.log(Date.now()+ " Open channel for ANT-FS");
                                    self.ANT.listen.call(self.ANT, function transferCancelCB() { self.ANT.iterateChannelStatus(0, true,function clean() { self.ANT.tryCleaningBuffers(function release() { self.ANT.releaseInterfaceCloseDevice(); }); }); }) 
                                });
-                       //    });
+                         //  });
                        //})
                    });
                });
@@ -3242,7 +3253,7 @@ Content = Buffer
                  packet,
                  self = this;
 
-             console.log("Burst transfer of %d packets on channel %d", numberOfPackets, ucChannel);
+            // console.log("Burst transfer of %d packets on channel %d", numberOfPackets, ucChannel);
 
              // Add to retry queue -> will only be of length === 1
              burstMsg = {
@@ -3287,7 +3298,7 @@ Content = Buffer
                                  console.log(Date.now()+ " Failed to send burst transfer to ANT engine", error);
                              },
                              function success() {
-                                 console.log(Date.now()+ " Sent burst packet to ANT engine for transmission");
+                                 //console.log(Date.now()+ " Sent burst packet to ANT engine for transmission");
                              }
                              );
                      }
@@ -3425,7 +3436,45 @@ Content = Buffer
              retry(maxRetries); 
          }
 
- }
+    }
+
+// Based on ANT SDK by Dynastream Innovations
+    function CRC() {
+    }
+
+    CRC.prototype = {
+
+        CRC_Calc16: function (data) {
+            return this.CRC_UpdateCRC16(0, data);
+        },
+
+        CRC_UpdateCRC16: function (CRCSeed, data) {
+            var byteNr, len = data.length;
+            for (byteNr = 0; byteNr < len; byteNr++)
+                CRCSeed = this.CRC_Get16(CRCSeed, data[byteNr]);
+            return CRCSeed;
+        },
+
+        CRC_Get16: function (CRCSeed, aByte) {
+            var CRC16Table = [0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,
+                    0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400],
+                usTmp;
+                 
+            // compute checksum of lower four bits of byte 
+            usTemp = CRC16Table[CRCSeed & 0xF];
+            CRCSeed = (CRCSeed >> 4) & 0x0FFF;
+            CRCSeed = CRCSeed ^ usTemp ^ CRC16Table[aByte & 0x0F];
+
+            // now compute checksum of upper four bits of byte 
+            usTemp = CRC16Table[CRCSeed & 0xF];
+            CRCSeed = (CRCSeed >> 4) & 0x0FFF;
+            CRCSeed = CRCSeed ^ usTemp ^ CRC16Table[(aByte >> 4) & 0x0F];
+
+            return CRCSeed;
+
+        }
+    }
+
 
  var ANTNode = new Node(); // Let's start ANT node
    
