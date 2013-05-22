@@ -81,7 +81,6 @@ DeviceProfile_HRM.prototype = {
         console.log("Lost broadcast data from HRM"); 
     },
 
-
     broadCastDataParser: function (data) {
         var receivedTimestamp = Date.now(),
             self = this;// Will be cannel configuration
@@ -188,7 +187,6 @@ DeviceProfile_HRM.prototype = {
         this.nodeInstance.broadCast(JSON.stringify(page)); // Send to all connected clients
     }
 };
-
 
 function DeviceProfile_SDM(nodeInstance)
 {
@@ -433,8 +431,6 @@ DeviceProfile_SDM.prototype = {
     }
 };
 
-
-
 function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
@@ -464,10 +460,6 @@ DeviceProfile_ANTFS.prototype = {
         0x02: "TRANSPORT State",
         0x03: "BUSY State"
     },
-
-    //var NETWORK = {
-    //    public : 0x00
-    //};
 
     // ANTFS TS p. 50 - commands are send either as acknowledged data or bursts depending on payload size
     // COMMAND format : p. 49 ANTFS Command/Response ID = 0x44, Command, Parameters ...
@@ -1477,38 +1469,6 @@ Node.prototype = {
        
     },
 
-    // Set host in ANTFS searchmode for LINK beacon 
-   initLinkLayer: function () {
-       var self = this;
-
-       self.channels[0].configure(self.ANTEngine, function () {
-           exitApplication();
-       },
-        function () {
-            self.channels[0].open(self.ANTEngine, function () { exitApplication(); },
-                function () {
-                    console.log("Channel open");
-                    self.findLinkBeacon(30000, 6, function () {
-                        console.log("Could not find LINK beacon. Terminating.");
-                        //process.kill(process.pid, 'SIGINT');
-                        exitApplication();
-
-                    });
-                });
-        });
-
-
-       
-            // Observation : Executing transmission direct to USB ANT device takes about 5-7 ms. -> timeout on 15 ms. seems like ok.
-            function exit(msg) {
-                console.log(msg);
-                exitApplication();
-            }
-
-           
-   },
-
-  
 };
 
 function Network(nr, key) {
@@ -1519,7 +1479,7 @@ function Network(nr, key) {
 Network.prototype = {
      NETWORK_KEY : {
         ANTFS: [0xa8, 0xa4, 0x23, 0xb9, 0xf5, 0x5e, 0x63, 0xc1], // For accessing Garmin ANT-FS
-        ANT: [0xB9, 0xA5, 0x21, 0xFB, 0xBD, 0x72, 0xC3, 0x45] // ANT+ managed network key, i.e HRM device profile
+        ANT: [0xB9, 0xA5, 0x21, 0xFB, 0xBD, 0x72, 0xC3, 0x45] // ANT+ managed network key, i.e HRM device profile -- TO DO : Move to a file to not violate shared licence
      },
      ANT : 0,      // Separate networks due to different keys
      ANT_FS : 1,
@@ -3448,7 +3408,9 @@ Content = Buffer
 
     }
 
-// Based on ANT SDK by Dynastream Innovations
+// Based on ANT-FS PCTOOLS Source Code
+// http://www.thisisant.com/developer/ant/licensing/ant-shared-source-license
+
     function CRC() {
     }
 
