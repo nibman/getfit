@@ -660,17 +660,21 @@ DeviceProfile_ANTFS.prototype = {
                                 download_response.data = data.slice(24, -8);
 
                                 if (download_response.dataOffset === 0) {
-                                    self.deviceProfile.downloadFile = new Buffer(download_response.fileSize); // First block of data
+                                    self.deviceProfile.downloadFile = new Buffer(64*1024*1024); // First block of data - allocate 64MB buffer -> should handle most cases if client grows file dynamically
                                     self.deviceProfile.dataOffset = [];
                                     self.deviceProfile.CRCSeed = [];
                                     self.deviceProfile.dataLength = [];
+                                   
                                 }
-                                else {
-                                    download_response.data.copy(self.deviceProfile.downloadFile, download_response.dataOffset);
-                                  //  console.log(self.deviceProfile.downloadFile, download_response.data);
+                                //else {
+                                //    //console.log(Date.now(), self.deviceProfile.downloadFile, "offset : ",download_response.dataOffset);
+                                //    //download_response.data.copy(self.deviceProfile.downloadFile, download_response.dataOffset);
+                                //  //  console.log(self.deviceProfile.downloadFile, download_response.data);
                                     
-                                }
+                                //}
 
+                                // Put the data chunck received into our buffer at the specified offset
+                                download_response.data.copy(self.deviceProfile.downloadFile, download_response.dataOffset);
 
                                 // If requested, parse body when last block is received (i.e index 0 = parseDirectory)
                                 if (typeof parser === "function" && download_response.totalRemainingLength === 0)
@@ -720,8 +724,14 @@ DeviceProfile_ANTFS.prototype = {
                                     }, 2000);
 
                                 } else if (download_response.totalRemainingLength === 0) {
-                                    console.log(Date.now() + " Downloaded file ", self.deviceProfile.downloadFile.length, " bytes", self.deviceProfile.downloadFile);
+                                    console.log(Date.now() + " Downloaded file ", download_response.fileSize, " bytes", self.deviceProfile.downloadFile);
                                     self.nodeInstance.deviceProfile_ANTFS.sendDisconnect.call(self); // Request device return to LINK layer
+                                    fs.writeFile('test.fit', self.deviceProfile.downloadFile.slice(0,download_response.fileSize), function (err) {
+                                        if (err)
+                                            console.log(Date.now() + " Error writing file from device", err);
+                                        else
+                                            console.log(Date.now() + " Saved file from device");
+                                    });
                                 }
                                 //console.log(Date.now(), download_response);
 
