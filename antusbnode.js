@@ -636,8 +636,6 @@ DeviceProfile_ANTFS.prototype = {
                             download_response.response = data[10];
                             download_response.responseFriendly = DeviceProfile_ANTFS.prototype.DOWNLOAD_RESPONSE[data[10]];
 
-                            
-
                             if (download_response.response === DeviceProfile_ANTFS.prototype.DOWNLOAD_RESPONSE.REQUEST_OK) {
 
                                 download_response.totalRemainingLength = data.readUInt32LE(12);
@@ -649,7 +647,7 @@ DeviceProfile_ANTFS.prototype = {
                                 download_response.fileSize = data.readUInt32LE(20);
 
                                 // Packet 4:N-1
-                                download_response.data = data.slice(24, -8);
+                                download_response.data = data.slice(24, -8); // Last packet is 000000 + 2 CRC bytes -> slice it off -> -8
 
                                 if (download_response.dataOffset === 0) {
                                     self.deviceProfile.downloadFile = new Buffer(64*1024*1024); // First block of data - allocate 64MB buffer -> should handle most cases if client grows file dynamically
@@ -658,22 +656,11 @@ DeviceProfile_ANTFS.prototype = {
                                     self.deviceProfile.dataLength = [];
                                    
                                 }
-                                //else {
-                                //    //console.log(Date.now(), self.deviceProfile.downloadFile, "offset : ",download_response.dataOffset);
-                                //    //download_response.data.copy(self.deviceProfile.downloadFile, download_response.dataOffset);
-                                //  //  console.log(self.deviceProfile.downloadFile, download_response.data);
-                                    
-                                //}
 
                                 // Put the data chunck received into our buffer at the specified offset
                                 download_response.data.copy(self.deviceProfile.downloadFile, download_response.dataOffset);
 
-                                // If requested, parse body when last block is received (i.e index 0 = parseDirectory)
-                                if (typeof parser === "function" && download_response.totalRemainingLength === 0)
-                                    parser.call(self, self.deviceProfile.downloadFile);
-                                //else if (typeof parser === "undefined" && download_response.totalRemainingLength === 0)
-                                //    console.log("Downloaded %d bytes", self.deviceProfile.downloadFile.length);
-
+                              
                                 // If more data remains, send a new continuation request for more
                                 if (download_response.totalRemainingLength > 0) {
                                     // Packet N
@@ -690,15 +677,10 @@ DeviceProfile_ANTFS.prototype = {
                                     if (download_response.CRC !== currentCRCSeed)
                                         console.warn(Date.now() + " CRC included at end of bursted data block ", download_response.CRC, " does not match the calculated CRC-16 of data block ", currentCRCSeed);
 
-                                       // self.deviceProfile.CRCSeed.push(download_response.CRC);
                                     self.deviceProfile.dataLength.push(download_response.data.length);
                                     self.deviceProfile.dataOffset.push(download_response.dataOffset);
-                                    //console.log("Test CRC",self.deviceProfile.CRCSeed[self.deviceProfile.CRCSeed.length-1]," CRC", download_response.CRC, "new offset", download_response.dataOffset + download_response.data.length);
-                                    // sendDownloadRequest : function (dataIndex,dataOffset,initialRequest,CRCSeed,maximumBlockSize, parser)
-                                    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, download_response.dataOffset + download_response.data.length,
-                                    //    DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, download_response.CRC, 0, parser);
-
-                                    self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 18, download_response.dataOffset + download_response.data.length,
+                                
+                                    self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.dataIndex, download_response.dataOffset + download_response.data.length,
                                         DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
 
                                     
@@ -707,7 +689,7 @@ DeviceProfile_ANTFS.prototype = {
                                         if (self.deviceProfile.timeoutRetry < 10) {
                                             console.log(Date.now() + " Received no burst response for previous download request in about 3000 ms. Retrying " + self.deviceProfile.timeoutRetry);
 
-                                            self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 18, download_response.dataOffset + download_response.data.length,
+                                            self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.dataIndex, download_response.dataOffset + download_response.data.length,
                                         DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
                                         } else {
                                             console.log(Date.now() + " Something is wrong with the link to the device. Cannot proceed.");
@@ -718,14 +700,19 @@ DeviceProfile_ANTFS.prototype = {
                                 } else if (download_response.totalRemainingLength === 0) {
                                     console.log(Date.now() + " Downloaded file ", download_response.fileSize, " bytes", self.deviceProfile.downloadFile);
                                     self.nodeInstance.deviceProfile_ANTFS.sendDisconnect.call(self); // Request device return to LINK layer
-                                    fs.writeFile('test.fit', self.deviceProfile.downloadFile.slice(0,download_response.fileSize), function (err) {
+                                    self.deviceProfile.downloadFile = self.deviceProfile.downloadFile.slice(0, download_response.fileSize);
+                                    fs.writeFile('test.fit', self.deviceProfile.downloadFile, function (err) {
                                         if (err)
                                             console.log(Date.now() + " Error writing file from device", err);
                                         else
                                             console.log(Date.now() + " Saved file from device");
                                     });
+                                    // If requested, parse body when last block is received (i.e index 0 = parseDirectory)
+                                    if (typeof self.deviceProfile.dataParser === "function" && download_response.totalRemainingLength === 0)
+                                        self.deviceProfile.dataParser.call(self, self.deviceProfile.downloadFile);
+                                    else if (typeof self.deviceProfile.dataParser === "undefined")
+                                        console.log(Date.now() + " No data parser specificed");
                                 }
-                                //console.log(Date.now(), download_response);
 
                             } else if (download_response.response === DeviceProfile_ANTFS.prototype.DOWNLOAD_RESPONSE.CRC_INCORRECT) {
                                 console.log(Date.now() + " Download response : ", download_response);
@@ -735,27 +722,22 @@ DeviceProfile_ANTFS.prototype = {
                                 var resumeCRCSeed = self.deviceProfile.CRCSeed[resumeIndex];
                                 console.log(self.deviceProfile.dataOffset.length, self.deviceProfile.CRCSeed.length);
 
-                               // console.log(self.deviceProfile.CRCSeed);
-
                                 // Remove data block with CRC error
                                 self.deviceProfile.dataOffset.pop();
                                 self.deviceProfile.dataLength.pop();
                                 self.deviceProfile.CRCSeed.pop();
 
-                                //console.log(self.deviceProfile.dataOffset);
-                                //console.log(self.deviceProfile.CRCSeed);
-
                                 // Try to resume download with last good CRC
                                 console.log(Date.now() + " Resume block " + resumeIndex + " data offset: " + resumeDataOffset + " CRC Seed: " + resumeCRCSeed);
 
-                                self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 18, resumeDataOffset,
+                                self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.dataIndex, resumeDataOffset,
                                     DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, resumeCRCSeed, 0);
 
                                 self.deviceProfile.timeoutForNextDataBlockID = setInterval(function retry() {
                                     self.deviceProfile.timeoutRetry++;
                                     if (self.deviceProfile.timeoutRetry < 10) {
                                         console.log("Received no burst response for previous download request in about 3000 ms . Retrying now.");
-                                        self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, 18, resumeDataOffset,
+                                        self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.dataIndex, resumeDataOffset,
                                           DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, resumeCRCSeed, 0);
                                     } else {
                                         console.log(Date.now() + " Lost the link to the device. Cannot proceed.");
@@ -770,7 +752,7 @@ DeviceProfile_ANTFS.prototype = {
                             break;
 
                         default:
-                            console.warn("Not implemented parsing of ANT-FS Command response code ", data[9]);
+                            console.warn(Date.now()+ " Not implemented parsing of ANT-FS Command response code ", data[9]);
                             break;
                     }
                 }
@@ -1105,7 +1087,7 @@ DeviceProfile_ANTFS.prototype = {
     // Parses ANT-FS directory at reserved file index 0
     parseDirectory : function (data)
     {
-        var self = this, numberOfFiles, fileNr, file, structureLength, addIndex;
+        var self = this, numberOfFiles, fileNr, file, structureLength, addIndex, totalBytesInDirectory = 0;
 
         self.deviceProfile.directory = {
             header : {
@@ -1129,7 +1111,7 @@ DeviceProfile_ANTFS.prototype = {
         for (fileNr = 0; fileNr < numberOfFiles; fileNr++) {
             addIndex = fileNr * structureLength;
             file = {
-                buffer : data.slice(16+addIndex,16+addIndex+structureLength),
+                buffer: data.slice(16 + addIndex, 16 + addIndex + structureLength),
                 index: data.readUInt16LE(16 + addIndex),
                 dataType: data[18 + addIndex],
                 identifier: data.readUInt32LE(19 + addIndex) & 0x00FFFFFF,
@@ -1145,16 +1127,92 @@ DeviceProfile_ANTFS.prototype = {
                 },
                 size: data.readUInt32LE(24 + addIndex),
                 date: data.readUInt32LE(28 + addIndex)
-            }
+            };
+
+            totalBytesInDirectory += file.size;
+           
             if (file.dataType === 0x80) // FIT 
             {
                 file.dataTypeFriendly = 'FIT';
                 file.dataSubType = data[19 + addIndex];
                 file.number = data.readUInt16LE(20 + addIndex);
             }
-            console.log(file);
+           // console.log(file);
             self.deviceProfile.directory.index.push(file);
+
+            // Drawback : each instance a function -> maybe move to a prototype
+            file.toString = function () {
+                var generalFlags = "", dataType = this.dataType, date = "", number = "", dataTypeFlags = "",
+                    dataSubType = "";
+
+                // Date is number of sec. elapsed since 00:00 of Dec. 31, 1989
+
+                if (this.date === 0xFFFFFFFF || this.date === 0x00)
+                    date = "Unknown";
+                else if (this.date < 0x0FFFFFFF)
+                    date = "System/Custom " + this.date;
+                else if (this.date !== 0)
+                    date = new Date(Date.UTC(1989, 11, 31, 0, 0, 0, 0) + this.date * 1000);
+
+                if (this.generalFlags.read)
+                    generalFlags += "download";
+                if (this.generalFlags.write)
+                    generalFlags += '_upload';
+                if (this.generalFlags.erase)
+                    generalFlags += '_erase';
+                if (this.generalFlags.archive)
+                    generalFlags += '_archive';
+                if(!this.generalFlags.archive)
+                    generalFlags += '_NEW';
+                if (this.generalFlags.append)
+                    generalFlags += '_append';
+                if (this.generalFlags.crypto)
+                    generalFlags += '_crypto';
+                
+
+                if (this.dataTypeFlags !== 0x00)
+                    dataTypeFlags = this.dataTypeFlags;
+
+                if (this.dataType <= 0x0F)
+                    dataType += " Manufacturer/Device";
+
+                if (this.dataType === 0x80) {
+
+                    if (this.number!== 0xFFFF)
+                        number = this.dataSubType;
+
+                    // FIT Files Types document in the FIT SDK 
+                    switch (this.dataSubType) {
+                        case 1: dataSubType = "Device capabilities"; break;
+                        case 2: dataSubType = "Settings"; break;
+                        case 3: dataSubType = "Sport settings"; break;
+                        case 4: dataSubType = "Activity"; break;
+                        case 5: dataSubType = "Workout"; break;
+                        case 6: dataSubType = "Course"; break;
+                        case 7: dataSubType = "Schedules"; break;
+                        case 8: dataSubType = "Locations"; break;
+                        case 9: dataSubType = "Weight"; break;
+                        case 10: dataSubType = "Totals"; break;
+                        case 11: dataSubType = "Goals"; break;
+                        case 14: dataSubType = "Blood Pressure"; break;
+                        case 15: dataSubType = "Monitoring"; break;
+                        case 20: dataSubType = "Activity Summary"; break;
+                        case 28: dataSubType = "Daily Monitoring"; break;
+                        default: dataSubType = this.dataSubType;
+                    }
+
+                    // Number skipped (seems to be the same as dataSubTupe) for FR 910XT
+                    dataType += " " + this.dataTypeFriendly + " " + dataSubType;
+                }
+                // (Skip this.identifier in output->not useful)
+                return "Index "+this.index + " " + dataType + " "+dataTypeFlags + " "+generalFlags + " " + this.size + " " + date;
+            }
+
+            console.log(file.toString());
+
         }
+
+        console.log("Total bytes in directory : ", totalBytesInDirectory);
 
         //console.log(self.deviceProfile.directory);
     },
@@ -1162,6 +1220,10 @@ DeviceProfile_ANTFS.prototype = {
     sendDownloadRequest : function (dataIndex,dataOffset,initialRequest,CRCSeed,maximumBlockSize, parser)
     {
         var downloadMsg, channelNr = this.number, self = this;
+
+        self.deviceProfile.dataIndex = dataIndex; // Reference to requested dataIndex -> used for continuation of download
+        if (typeof parser !== "undefined")
+          self.deviceProfile.dataParser = parser; // Callback for parsing data after download is finished
 
         downloadMsg = self.deviceProfile.ANTFSCOMMAND_Download(dataIndex, dataOffset, initialRequest, CRCSeed, maximumBlockSize);
 
@@ -1178,7 +1240,7 @@ DeviceProfile_ANTFS.prototype = {
                 self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error() { console.log(Date.now()+" Failed to send burst transfer with download request"); },
            function success() {
               // console.log(Date.now()+" Sent burst transfer with download request over RF", downloadMsg);
-           }, parser, "DownloadRequest index: " + dataIndex + " data offset: " + dataOffset + " initial request: " + initialRequest + "CRC seed: " + CRCSeed + "max. block size: " + maximumBlockSize);
+           },  "DownloadRequest index: " + dataIndex + " data offset: " + dataOffset + " initial request: " + initialRequest + "CRC seed: " + CRCSeed + "max. block size: " + maximumBlockSize);
         }
 
         retry();
@@ -1255,13 +1317,13 @@ DeviceProfile_ANTFS.prototype = {
                 // Download directory at index 0
                 if (typeof self.deviceProfile.download === "undefined") {
                     self.deviceProfile.download = true;
-                    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
-                    //    DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
-                    //    DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0, self.nodeInstance.deviceProfile_ANTFS.parseDirectory);
-
                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
-                      18, 0,
-                      DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0);
+                        DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
+                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0, self.nodeInstance.deviceProfile_ANTFS.parseDirectory);
+
+                    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
+                    //  18, 0,
+                    //  DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0);
                 }
             } 
                
@@ -2159,8 +2221,10 @@ Channel.prototype = {
                      break;
              }
 
-             if (msgID !== ANT.prototype.ANT_MESSAGE.burst_transfer_data.id) // Avoid burst logging -> gives performance problems
-                 console.log(Date.now() + " Rx: ", data, msgStr);
+             //if (msgID !== ANT.prototype.ANT_MESSAGE.burst_transfer_data.id) // Avoid burst logging -> gives performance problems
+             //    console.log(Date.now() + " Rx: ", data, msgStr);
+
+
              //for (var byteNr = 0; byteNr < data.length; byteNr++) {
              //    if (byteNr === 0 && data[byteNr] === SYNC)
              //        console.log("Buffer index " + byteNr + ", value: " + data[byteNr] + " = SYNC");
@@ -3213,7 +3277,7 @@ Content = Buffer
 
          // p. 98 in spec.
          // Sends bulk data
-         sendBurstTransfer: function (ucChannel, pucData, errorCallback, successCallback, parserCallback, messageFriendlyName)
+         sendBurstTransfer: function (ucChannel, pucData, errorCallback, successCallback,  messageFriendlyName)
          {
              var numberOfPackets = Math.ceil(pucData.length / 8),
                  packetNr,
@@ -3231,7 +3295,7 @@ Content = Buffer
                      buffer : pucData,
                      friendlyName: messageFriendlyName
                  },
-                 parser : parserCallback, // Handle burst response data, i.e directory at file index 0
+                
                  retry: 0,
                  EVENT_TRANSFER_TX_COMPLETED_CB: successCallback,
                  EVENT_TRANSFER_TX_FAILED_CB: errorCallback,
@@ -3367,7 +3431,7 @@ Content = Buffer
              if (message.id === ANT.prototype.ANT_MESSAGE.request.id)
                  request = ANT.prototype.ANT_MESSAGE[message.buffer[4]];
 
-             console.log(Date.now() + " TX: ", message.buffer, " "+message.friendly + " "+request +" timeout " + timeout + " max retries " + maxRetries);
+            // console.log(Date.now() + " TX: ", message.buffer, " "+message.friendly + " "+request +" timeout " + timeout + " max retries " + maxRetries);
 
              if (typeof successCallback === "undefined")
                  console.trace();
