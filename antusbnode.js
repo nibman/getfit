@@ -474,7 +474,8 @@ DeviceProfile_ANTFS.prototype = {
         ERASE: 0x0B,
         UPLOAD_DATA: 0x0C,
         AUTHENTICATE_RESPONSE : 0x84,
-        DOWNLOAD_RESPONSE : 0x89
+        DOWNLOAD_RESPONSE: 0x89,
+        ERASE_RESPONSE : 0x8B
     },
 
     // ANTFS TS p. 51
@@ -541,6 +542,15 @@ DeviceProfile_ANTFS.prototype = {
         0x05: "CRC incorrect"
     },
 
+    ERASE_RESPONSE : {
+        ERASE_SUCCESSFULL: 0x00,
+        ERASE_FAILED: 0x01,
+        NOT_READY: 0x02,
+        0x00: "Erase successfull",
+        0x01: "Erase failed",
+        0x02: "Not ready"
+    },
+
     RESERVED_FILE_INDEX : {
         DIRECTORY_STRUCTURE: 0x00,
         // 0xFC00 - 0xFFFD Reserved
@@ -552,10 +562,11 @@ DeviceProfile_ANTFS.prototype = {
     {
         var self = this, beacon, numberOfPackets = data.length / 8,
             authenticate_response = {}, packetNr,
-            download_response = {}, currentCRCSeed;
+            download_response = {}, currentCRCSeed,
+            erase_response = {};
            
-        if (self.deviceProfile.timeoutForNextDataBlockID) {
-            clearInterval(self.deviceProfile.timeoutForNextDataBlockID);
+        if (self.deviceProfile.timeoutID) {
+            clearInterval(self.deviceProfile.timeoutID);
             self.deviceProfile.timeoutRetry = 0;
         }
         //console.log("Got burst data in device profile ANT-FS", data);
@@ -684,7 +695,7 @@ DeviceProfile_ANTFS.prototype = {
                                         DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
 
                                     
-                                    self.deviceProfile.timeoutForNextDataBlockID = setInterval(function retry() {
+                                    self.deviceProfile.timeoutID = setInterval(function retry() {
                                         self.deviceProfile.timeoutRetry++;
                                         if (self.deviceProfile.timeoutRetry < 10) {
                                             console.log(Date.now() + " Received no burst response for previous download request in about 3000 ms. Retrying " + self.deviceProfile.timeoutRetry);
@@ -733,10 +744,10 @@ DeviceProfile_ANTFS.prototype = {
                                 self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.dataIndex, resumeDataOffset,
                                     DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, resumeCRCSeed, 0);
 
-                                self.deviceProfile.timeoutForNextDataBlockID = setInterval(function retry() {
+                                self.deviceProfile.timeoutID = setInterval(function retry() {
                                     self.deviceProfile.timeoutRetry++;
                                     if (self.deviceProfile.timeoutRetry < 10) {
-                                        console.log("Received no burst response for previous download request in about 3000 ms . Retrying now.");
+                                        console.log("Received no burst response for previous download request in about 2000 ms . Retrying now.");
                                         self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.dataIndex, resumeDataOffset,
                                           DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, resumeCRCSeed, 0);
                                     } else {
@@ -748,6 +759,32 @@ DeviceProfile_ANTFS.prototype = {
                             }
                             else
                                 console.log(Date.now() + " Download response : ", download_response);
+
+                            break;
+
+                        case DeviceProfile_ANTFS.prototype.COMMAND_ID.ERASE_RESPONSE:
+
+                            erase_response.response = data[10];
+                            console.log(Date.now() + " Erase response: " + DeviceProfile_ANTFS.prototype.ERASE_RESPONSE[erase_response.response]);
+
+                            if (erase_response.response === DeviceProfile_ANTFS.prototype.ERASE_RESPONSE.ERASE_FAILED || erase_response.response === DeviceProfile_ANTFS.prototype.ERASE_RESPONSE.NOT_READY) {
+                                self.nodeInstance.deviceProfile_ANTFS.sendEraseRequest.call(self, self.deviceProfile.dataIndex);
+
+                                self.deviceProfile.timeoutID = setInterval(function retry() {
+                                    self.deviceProfile.timeoutRetry++;
+                                    if (self.deviceProfile.timeoutRetry < 10) {
+                                        console.log(Date.now() + " Received no burst response for previous erase request in about 5000 ms. Retrying " + self.deviceProfile.timeoutRetry);
+
+                                        self.nodeInstance.deviceProfile_ANTFS.sendEraseRequest.call(self, self.deviceProfile.dataIndex);
+                                    } else {
+                                        console.log(Date.now() + " Something is wrong with the link to the device. Cannot proceed.");
+                                        process.kill(process.pid, 'SIGINT');
+                                    }
+                                }, 5000);
+                            } else if (erase_response.response === DeviceProfile_ANTFS.prototype.ERASE_RESPONSE.ERASE_SUCCESSFULL)
+                                self.nodeInstance.deviceProfile_ANTFS.sendDisconnect.call(self); // Request device return to LINK layer
+                            else
+                                console.warn(Date.now() + " Received unknown erase response", erase_response.response);
 
                             break;
 
@@ -832,6 +869,16 @@ DeviceProfile_ANTFS.prototype = {
         payload[2] = commandType;
         payload[3] = authStringLength; // "Set to 0 if no authentication is to be supplied", "string is bursts to the client immediately following this command", "..If Auth String Length parameter is set to 0, this msg. may be sent as an acknowledged message"
         payload.writeUInt32LE(hostSerialNumber, 4);
+
+        return payload;
+    },
+
+    ANTFSCOMMAND_Erase: function (dataIndex) {
+        var payload = new Buffer(4);
+
+        payload[0] = DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID; // 0x44;
+        payload[1] = DeviceProfile_ANTFS.prototype.COMMAND_ID.ERASE;
+        payload.writeUInt16LE(dataIndex, 2);
 
         return payload;
     },
@@ -1227,9 +1274,6 @@ DeviceProfile_ANTFS.prototype = {
 
         downloadMsg = self.deviceProfile.ANTFSCOMMAND_Download(dataIndex, dataOffset, initialRequest, CRCSeed, maximumBlockSize);
 
-        var sendBurst = function () {
-            
-        };
 
         function retry() {
             if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
@@ -1244,6 +1288,28 @@ DeviceProfile_ANTFS.prototype = {
         }
 
         retry();
+    },
+
+    sendEraseRequest: function (dataIndex) {
+        var eraseMsg, channelNr = this.number, self = this;
+
+        self.deviceProfile.dataIndex = dataIndex; // Reference to requested dataIndex -> used for continuation of download
+     
+        eraseMsg = self.deviceProfile.ANTFSCOMMAND_Erase(dataIndex);
+
+        function retryIfBusy() {
+            if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
+                console.log(Date.now() + " Client is busy. Delaying burst of erase request with 250 ms");
+                setTimeout(function () { retry(); }, 250);
+            }
+            else
+                self.nodeInstance.ANT.sendBurstTransfer(channelNr, eraseMsg, function error() { console.log(Date.now() + " Failed to send burst transfer with erase request"); },
+           function success() {
+               // console.log(Date.now()+" Sent burst transfer with download request over RF", downloadMsg);
+           }, "EraseRequest index: " + dataIndex);
+        }
+
+        retryIfBusy();
     },
 
     broadCastDataParser: function (data) {
@@ -1314,17 +1380,23 @@ DeviceProfile_ANTFS.prototype = {
                 // If no transmission takes place on the established link, client will close channel in 10 seconds and return to LINK state.
                 // p. 56 in ANT-FS spec. PING-command 0x05 can be sent to keep alive link to reset client device connection timer
                 
-                // Download directory at index 0
+                //// Download directory at index 0
                 if (typeof self.deviceProfile.download === "undefined") {
                     self.deviceProfile.download = true;
                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
                         DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
                         DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0, self.nodeInstance.deviceProfile_ANTFS.parseDirectory);
 
-                    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
-                    //  18, 0,
-                    //  DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0);
+                //    //self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
+                //    //  18, 0,
+                //    //  DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0);
+                //}
+
+                //if (typeof self.deviceProfile.erase === "undefined") {
+                //        self.deviceProfile.erase = true;
+                //        self.nodeInstance.deviceProfile_ANTFS.sendEraseRequest.call(self,10);
                 }
+
             } 
                
         }
