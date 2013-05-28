@@ -1501,16 +1501,20 @@ DeviceProfile_ANTFS.prototype = {
 
     },
 
-    disconnectFromDevice: function () {
+    disconnectFromDevice: function (completeCB) {
         var self = this;
         self.nodeInstance.deviceProfile_ANTFS.sendDisconnect.call(self, function error() {
             console.log(Date.now() + " Failed to send ANT-FS disconnect command to device");
             // delete self.deviceProfile.sendingLINK;
         },
                                          function success() {
-                                             delete self.deviceProfile.download;
+                                            // delete self.deviceProfile.download;
                                              console.log(Date.now() + " ANT-FS disconnect command acknowledged by device. Device should return to LINK layer now.");
 
+                                             if (typeof completeCB === "function")
+                                                 completeCB();
+                                             else
+                                                 console.warn(Date.now() + " No completion callback specified after disconnect");
 
                                          }); // Request device return to LINK layer
     },
@@ -1518,7 +1522,7 @@ DeviceProfile_ANTFS.prototype = {
 
     broadCastDataParser: function (data) {
         var beaconID = data[4], channelNr = data[3],
-            beacon, self = this, retryLINK = 0;
+            beacon, self = this, retryLINK = 0,  currentCommand;
         // Check for valid beacon ID 0x43 , p. 45 ANT-FS Technical Spec.
 
 
@@ -1544,45 +1548,54 @@ DeviceProfile_ANTFS.prototype = {
                     self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
                     // self.deviceProfile.stateCounter[DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER]++;
 
-                    switch (beacon.authenticationType) {
-                        case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
+                    if (beacon.dataAvailable || self.nodeInstance.commandQueue.length > 0) // Only go to auth. layer if new data is available or there is more commands to process
+                    {
+                        if (self.nodeInstance.commandQueue.length === 0 && beacon.dataAvailable) {
+                            console.log(Date.now() + " LINK beacon reports data available, scheduling download of new files");
+                            self.nodeInstance.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
+                        }
 
-                            // Do not enter this region more than once (can reach 8 beacon msg. pr sec === channel period)
-                            if (typeof self.deviceProfile.sendingLINK === "undefined") {
-                                self.deviceProfile.sendingLINK = true;
+                        switch (beacon.authenticationType) {
 
-                                function retryLink() {
-                                    if (++retryLINK < 10) {
-                                        self.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(self,
-                                            function error() {
-                                                console.log(Date.now() + " Failed to send ANT-FS link command to device");
-                                                delete self.deviceProfile.sendingLINK;
+                            case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
 
-                                            },
-                                            function success() {
-                                                console.log(Date.now() + " ANT-FS link command acknowledged by device.");
-                                                // Device should transition to authentication beacon now if all went well
-                                                setTimeout(function handler() {
-                                                    if (typeof self.deviceProfile.sendingLINK !== "undefined") {
-                                                        console.log(Date.now() + " Device did not transition to authentication state. Retrying when LINK beacon is received from device.");
-                                                        delete self.deviceProfile.sendingLINK;
-                                                    }
-                                                }, 10000); // Allow resend of LINK after 10 sec.
-                                            }
-                                            );
-                                    } else {
-                                        console.error(Date.now() + " Reached maximum number of retries of sending LINK command to device.");
+                                // Do not enter this region more than once (can reach 8 beacon msg. pr sec === channel period)
+                                if (typeof self.deviceProfile.sendingLINK === "undefined") {
+                                    self.deviceProfile.sendingLINK = true;
+
+                                    function retryLink() {
+                                        if (++retryLINK < 10) {
+                                            self.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(self,
+                                                function error() {
+                                                    console.log(Date.now() + " Failed to send ANT-FS link command to device");
+                                                    delete self.deviceProfile.sendingLINK;
+
+                                                },
+                                                function success() {
+                                                    console.log(Date.now() + " ANT-FS link command acknowledged by device.");
+                                                    // Device should transition to authentication beacon now if all went well
+                                                    setTimeout(function handler() {
+                                                        if (typeof self.deviceProfile.sendingLINK !== "undefined") {
+                                                            console.log(Date.now() + " Device did not transition to authentication state. Retrying when LINK beacon is received from device.");
+                                                            delete self.deviceProfile.sendingLINK;
+                                                        }
+                                                    }, 10000); // Allow resend of LINK after 10 sec.
+                                                }
+                                                );
+                                        } else {
+                                            console.error(Date.now() + " Reached maximum number of retries of sending LINK command to device.");
+                                        }
                                     }
+
+                                    retryLink();
                                 }
 
-                                retryLink();
-                            }
+                                break;
 
-                            break;
-
-                        default:
-                            console.error("Authentication type not implemented ", DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beacon.authentication], "(" + beacon.authentication + ")");
-                            break;
+                            default:
+                                console.error("Authentication type not implemented, cannot proceed to transport layer ", DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beacon.authentication], "(" + beacon.authentication + ")");
+                                break;
+                        }
                     }
 
                     break;
@@ -1646,63 +1659,66 @@ DeviceProfile_ANTFS.prototype = {
                     delete self.deviceProfile.sendingAUTH_CLIENT_SN;
                     // If no transmission takes place on the established link, client will close channel in 10 seconds and return to LINK state.
                     // p. 56 in ANT-FS spec. PING-command 0x05 can be sent to keep alive link to reset client device connection timer
+                    
+                    if (typeof self.deviceProfile.processingCommand === "undefined") { // Can only process one command at a time
+                        self.deviceProfile.processingCommand = true;
 
-                    //// Download directory at index 0
-                    if (typeof self.deviceProfile.download === "undefined") {
-                        self.deviceProfile.download = true;
+                        currentCommand = self.nodeInstance.commandQueue.shift(); // Take next command
 
-                        switch (self.nodeInstance.command[0]) {
-
-                            case Node.prototype.COMMAND.DOWNLOAD_NEW:
-
-                                self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
-                                        DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
-                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0,
-                                        function completeCB() {
-                                            // var self = this;
-
-                                            self.nodeInstance.deviceProfile_ANTFS.parseDirectory.call(self, self.deviceProfile.response.downloadFile);
-
-                                            if (self.deviceProfile.directory.newIndex.length > 0) {
-                                                self.deviceProfile.downloadMultipleFiles.call(self, self.deviceProfile.directory.newIndex, function complete() {
-                                                    self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self);
-                                                });
-
-                                            } else
-                                                console.log(Date.now() + " No new files available/every file has been downloaded");
-                                        });
-
-                                break;
-
-                            case Node.prototype.COMMAND.ERASE_FILE:
-
-                                console.log(Date.now() + " About to erase file at index ", self.nodeInstance.commandIndex[0]);
-
-                                
-                                    self.deviceProfile.sendEraseRequest.call(self, self.nodeInstance.commandIndex[0], true, function complete() {
-                                        self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self);
-                                    });
-                             
-
-                                break;
-
-                            default:
-                                console.log(Date.now() + " Unknown command to process " + self.nodeInstance.command);
-                                break;
+                        if (typeof currentCommand === "undefined") {
+                            console.warn(Date.now() + " No commands available for further processing");
+                            self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self, function () { });
+                            //delete self.deviceProfile.processingCommand;
+                            // Won't allow more processing in transport layer now, client device will return to 
                         }
+                        else
+                            switch (currentCommand) {
 
+                                case Node.prototype.COMMAND.DOWNLOAD_NEW:
 
-                        //if (typeof self.deviceProfile.erase === "undefined") {
-                        //        self.deviceProfile.erase = true;
-                        //        self.nodeInstance.deviceProfile_ANTFS.sendEraseRequest.call(self,10);
+                                    self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
+                                            DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
+                                            DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0,
+                                            function completeCB() {
+                                                // var self = this;
+
+                                                self.nodeInstance.deviceProfile_ANTFS.parseDirectory.call(self, self.deviceProfile.response.downloadFile);
+
+                                                if (self.deviceProfile.directory.newIndex.length > 0) {
+                                                    self.deviceProfile.downloadMultipleFiles.call(self, self.deviceProfile.directory.newIndex, function complete() {
+                                                        console.log(Date.now() + " Downloaded new files");
+                                                        delete self.deviceProfile.processingCommand; // Allow processing of next command
+                                                    });
+
+                                                } else
+                                                    console.log(Date.now() + " No new files available/every file has been downloaded");
+                                            });
+
+                                    break;
+
+                                case Node.prototype.COMMAND.ERASE_FILE:
+
+                                    console.log(Date.now() + " About to erase file at index ", self.nodeInstance.commandIndex[0]);
+                                    // TO DO : fix commandIndex....
+                                    self.deviceProfile.sendEraseRequest.call(self, self.nodeInstance.commandIndex[0], true, function complete() {
+                                        //self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self);
+                                        console.log(Date.now() + " Erased file at index", self.nodeInstance.commandIndex[0]);
+                                        delete self.deviceProfile.processingCommand;
+                                    });
+
+                                    break;
+
+                                default:
+                                    console.log(Date.now() + " Unknown command to process " + self.nodeInstance.commandQueue);
+                                    delete self.deviceProfile.processingCommand;
+                                    break;
+                            }
                     }
                     //else
                     //    console.log(Date.now() + " Nothing to do in transport layer ", self.deviceProfile.download);
 
                     break;
-
             }
-
         }
     }
 };
@@ -1748,18 +1764,18 @@ DeviceProfile_SPDCAD.prototype = {
 
 function Node() {
     var self = this;
-    self.command = [];
+    self.commandQueue = [];
     self.commandIndex = [];
 
-    if (process.argv.length <= 2) {
-        showUsage();
-        return;
-    }
+    //if (process.argv.length <= 2) {
+    //    showUsage();
+    //    return;
+    //}
 
     if (process.argv[2] === "-d") {
-        self.command.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
+        self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
     } else if (process.argv[2] === "-e") {
-        self.command.push(Node.prototype.COMMAND.ERASE_FILE);
+        self.commandQueue.push(Node.prototype.COMMAND.ERASE_FILE);
         if (typeof process.argv[3] === "undefined" || isNaN(parseInt(process.argv[3], 10))) {
             console.log("Missing file index or file index is not a number");
             showUsage();
@@ -1768,10 +1784,10 @@ function Node() {
             self.commandIndex.push(parseInt(process.argv[3],10));
 
     }
-    else {
-        showUsage();
-        return;
-    }
+    //else {
+    //    showUsage();
+    //    return;
+    //}
 
     function showUsage() {
         console.log("Commands :");
