@@ -1,10 +1,9 @@
-// Some info. from : https://github.com/Tigge/Garmin-Forerunner-610-Extractor
+// Some info. from a python implementation of ANTFS: https://github.com/Tigge/Garmin-Forerunner-610-Extractor
 
 var usb = require('./usb'),
     fs = require('fs'),
     util = require('util');
-
-var log = true;
+   // log  = true;
 
 // Based on https://developer.mozilla.org/en-US/docs/JavaScript/Introduction_to_Object-Oriented_JavaScript
 function DeviceProfile(nodeInstance) {
@@ -63,16 +62,13 @@ DeviceProfile_HRM.prototype = {
 
         channel.broadCastDataParser = this.broadCastDataParser || DeviceProfile.prototype.broadCastDataParser; // Called on received broadcast data
 
-
         channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         channel.deviceProfile = this; // Attach deviceprofile to channel
-
 
         this.channel = channel; // Attach channel to device profile
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
         return channel;
-
     },
 
     lostBroadCastData: function () {
@@ -103,7 +99,6 @@ DeviceProfile_HRM.prototype = {
             heartBeatEventTime: data.readUInt16LE(startOfPageIndex + 4),
             heartBeatCount: data[startOfPageIndex + 6],
             computedHeartRate: data[startOfPageIndex + 7],
-
 
         };
 
@@ -159,7 +154,6 @@ DeviceProfile_HRM.prototype = {
                     this.previousHeartBeatEventTime = page.heartBeatEventTime;
                     console.log("HW version " + page.hardwareVersion + " SW version " + page.softwareVersion + " Model " + page.modelNumber);
                 }
-
 
                 break;
 
@@ -655,9 +649,10 @@ DeviceProfile_ANTFS.prototype = {
             // Packet 1 BEACON
             beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data, true);
             //console.log("BEACON PARSE", beacon.toString());
-            if (beacon.hostSerialNumber !== this.nodeInstance.ANT.serialNumber)
-                console.warn("Beacon in bulk transfer header/packet 1, was for ", beacon.hostSerialNumber, ", our device serial number is ", this.nodeInstance.ANT.serialNumber);
-            else {
+            if (beacon.hostSerialNumber !== this.nodeInstance.ANT.serialNumber) {
+                console.warn("Beacon in bulk transfer header/packet 1, was for ", beacon.hostSerialNumber, ", our device serial number is ", this.nodeInstance.ANT.serialNumber, "beacon packet ",data);
+
+            } else {
                 // Packet 2 ANT-FS RESPONSE
                 if (data[8] !== DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID)
                     console.error("Expected ANT-FS COMMAND ID 0x44 at start of packet 2", data);
@@ -834,12 +829,6 @@ DeviceProfile_ANTFS.prototype = {
                                                 console.log(Date.now() + " Saved " + fName);
                                         });
 
-                                        //// If requested, parse body when last block is received (i.e index 0 = parseDirectory)
-                                        //if (typeof self.deviceProfile.request.parser === "function")
-                                        //    self.deviceProfile.request.parser.call(self, self.deviceProfile.response.downloadFile);
-                                        //else if (typeof self.deviceProfile.request.parser === "undefined")
-                                        //    console.log(Date.now() + " No data parser specificed in download request");
-
                                     }
 
                                     processRequestCallback();
@@ -908,7 +897,7 @@ DeviceProfile_ANTFS.prototype = {
                                     console.log(Date.now() + " Reached maximum number of retries, file is probably not deleted", self.deviceProfile.request.retry);
                                     processRequestCallback();
                                 }
-                                
+
                             } else if (erase_response.response === DeviceProfile_ANTFS.prototype.ERASE_RESPONSE.ERASE_SUCCESSFULL) {
                                 console.log(Date.now() + " Erased file at index ", self.deviceProfile.request.dataIndex);
                                 processRequestCallback();
@@ -1129,7 +1118,6 @@ DeviceProfile_ANTFS.prototype = {
                 }, 10000);
                 successCallback();
             });
-
     },
 
     // Sending this command -> gives a burst of 4 packets 9 bytes in length (including CS/CRC); auth. beacon + 0x84 authenticate response + authorization string on the FR 910XT
@@ -1509,7 +1497,7 @@ DeviceProfile_ANTFS.prototype = {
         },
                                          function success() {
                                             // delete self.deviceProfile.download;
-                                             console.log(Date.now() + " ANT-FS disconnect command acknowledged by device. Device should return to LINK layer now.");
+                                             console.log(Date.now() + " ANT-FS disconnect command acknowledged by device. Device should return immediatly to LINK layer.");
 
                                              if (typeof completeCB === "function")
                                                  completeCB();
@@ -1541,12 +1529,18 @@ DeviceProfile_ANTFS.prototype = {
 
             console.log(Date.now() + " " + beacon.toString());
 
+            clearTimeout(self.deviceProfile.linkLayerTimeout);
+
             switch (beacon.clientDeviceState) {
 
                 case DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER:
 
                     self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
                     // self.deviceProfile.stateCounter[DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER]++;
+                    
+                    self.deviceProfile.linkLayerTimeout = setTimeout(function () {
+                        console.log(Date.now() + " Did not receive any LINK beacon from device in 1 second, connection probably lost/device closed channel");
+                    }, 1000);
 
                     if (beacon.dataAvailable || self.nodeInstance.commandQueue.length > 0) // Only go to auth. layer if new data is available or there is more commands to process
                     {
@@ -1603,6 +1597,7 @@ DeviceProfile_ANTFS.prototype = {
                 case DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER:
                     // One exception is EVENT_TRANSFER_TX_FAILED of link command (but device got the command and still sends AUTHENTICATION BEACON)  
                     this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER;// Follow same state in host as the device/client;
+
                     delete self.deviceProfile.sendingLINK;
 
                     // Is authentication beacon for us?
@@ -1760,7 +1755,6 @@ DeviceProfile_SPDCAD.prototype = {
         console.log(Date.now() + " SPDCAD broad cast data ", data);
     }
 };
-
 
 function Node() {
     var self = this;
@@ -2390,7 +2384,7 @@ ANT.prototype = {
         else if (data[3] & (1 << 7))
             msg = "SUSPEND_RESET";
 
-        if (log)
+       
             console.log(msg);
 
         return msg;
@@ -2407,7 +2401,7 @@ ANT.prototype = {
         else if (data[3] === 3)
             msg = "Message too large";
 
-        if (log)
+      
             console.log(msg);
 
         return msg;
@@ -2891,16 +2885,26 @@ Content = Buffer
             });
     },
 
-    parseDeviceSerialNumber: function (data) {
+    parseDeviceSerialNumber: function (data,overwrite) {
         // SN 4 bytes Little Endian
         var sn = data.readUInt32LE(3),
           msg = "Device serial number: " + sn,
             self = this;
 
-        self.serialNumber = sn;
+        if (typeof self.serialNumber === "undefined")
+            self.serialNumber = sn;
+        else {
+            console.log(Date.now() + " Previously defined serial number for device : ", self.serialNumber, "read new serial number:", sn, "based on ", data);
+            if (typeof overwrite !== "undefined" && overwrite) {
+                self.serialNumber = sn;
+            }
+            else {
+                console.warn(Date.now() + " Not allowed to overwrite serial number with the new one - overwrite flag not set");
+                console.trace();
+            }
+        }
 
-        if (log)
-            console.log(msg);
+        console.log(msg);
 
         return msg;
     },
@@ -3300,7 +3304,7 @@ Content = Buffer
         var self = this;
         var channel = self.channelConfiguration[channelConfNr];
 
-        console.log("Configuring : ", channelConfNr);
+        //console.log("Configuring : ", channelConfNr);
 
         self.setNetworkKey(channelConfNr,
                  function () { console.log("Failed to set network key.", channel.network); },
@@ -3353,7 +3357,7 @@ Content = Buffer
         var self = this;
         var channel = this.channelConfiguration[channelConfNr];
 
-        console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key);
+        //console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key);
 
         self.sendOnly(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]), new Buffer(channel.network.key)])),
         ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
@@ -3374,8 +3378,8 @@ Content = Buffer
 
         var channel = this.channelConfiguration[channelConfNr], self = this;
 
-        console.log("Assign channel " + channel.number + " to channel type " + Channel.prototype.CHANNEL_TYPE[channel.channelType] + "(" +
-            channel.channelType + ")" + " on network " + channel.network.number);
+        //console.log("Assign channel " + channel.number + " to channel type " + Channel.prototype.CHANNEL_TYPE[channel.channelType] + "(" +
+        //    channel.channelType + ")" + " on network " + channel.network.number);
 
         // Assign channel command should be issued before any other channel configuration messages (p. 64 ANT Message Protocol And Usaga Rev 50) ->
         // also sets defaults values for RF, period, tx power, search timeout p.22
@@ -3404,7 +3408,7 @@ Content = Buffer
 
         var set_channel_id_msg, self = this;
         var channel = this.channelConfiguration[channelConfNr];
-        console.log("Setting channel id. - channel number " + channel.number + " device type " + channel.deviceType + " transmission type " + channel.transmissionType);
+        //console.log("Setting channel id. - channel number " + channel.number + " device type " + channel.deviceType + " transmission type " + channel.transmissionType);
 
         var buf = new Buffer(5);
         buf[0] = channel.number;
@@ -3434,7 +3438,7 @@ Content = Buffer
         var set_channel_period_msg, rate, self = this;
         var channel = this.channelConfiguration[channelConfNr];
 
-        console.log("Set channel period for channel " + channel.number + " to " + channel.periodFriendly + " value: " + channel.period);
+        //console.log("Set channel period for channel " + channel.number + " to " + channel.periodFriendly + " value: " + channel.period);
 
         var buf = new Buffer(3);
         buf[0] = channel.number;
@@ -3461,7 +3465,7 @@ Content = Buffer
         var channel_search_timeout_msg, self = this;
         var channel = this.channelConfiguration[channelConfNr];
 
-        console.log("Set channel search timeout channel " + channel.number + " timeout " + channel.searchTimeout);
+        //console.log("Set channel search timeout channel " + channel.number + " timeout " + channel.searchTimeout);
 
         channel_search_timeout_msg = this.create_message(this.ANT_MESSAGE.set_channel_search_timeout, new Buffer([channel.number, channel.searchTimeout]));
 
@@ -3483,7 +3487,7 @@ Content = Buffer
         var RFFreq_msg, self = this;
         var channel = this.channelConfiguration[channelConfNr];
 
-        console.log("Set channel RF frequency channel " + channel.number + " frequency " + channel.RFfrequency);
+       // console.log("Set channel RF frequency channel " + channel.number + " frequency " + channel.RFfrequency);
         RFFreq_msg = this.create_message(this.ANT_MESSAGE.set_channel_RFFreq, new Buffer([channel.number, channel.RFfrequency]));
         this.sendOnly(RFFreq_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
             function success() {
@@ -3510,7 +3514,7 @@ Content = Buffer
             errorCallback();
         }
 
-        console.log("Set channel search waveform channel " + channel.number + " waveform " + channel.searchWaveform);
+        //console.log("Set channel search waveform channel " + channel.number + " waveform " + channel.searchWaveform);
 
         buf[0] = channel.number;
         buf[1] = channel.searchWaveform[0];
