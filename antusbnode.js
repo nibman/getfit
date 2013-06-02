@@ -435,11 +435,12 @@ function DeviceProfile_ANTFS(nodeInstance) {
 
     fs.exists(DeviceProfile_ANTFS.prototype.ROOT_DIR, function (exists) {
         if (!exists) {
-            console.log(Date.now() + " ANTFSNODE root directory did not exists");
+            console.log("Root directory did not exists");
             fs.mkdir(DeviceProfile_ANTFS.prototype.ROOT_DIR, function completionCB() {
-                console.log(Date.now() + " New root directory created at " + DeviceProfile_ANTFS.prototype.ROOT_DIR);
+                console.log("New root directory created at " + DeviceProfile_ANTFS.prototype.ROOT_DIR);
             });
-        }
+        } else
+            console.log("Root directory ", DeviceProfile_ANTFS.prototype.ROOT_DIR);
     });
 
 }
@@ -614,7 +615,8 @@ DeviceProfile_ANTFS.prototype = {
             resumeDataOffset,
              resumeCRCSeed,
              currentDataOffset,
-            homeDirectory;
+            homeDirectory,
+            downloadRequestType;
 
         function removeLastBlock() {
             // Remove data block with CRC error
@@ -778,11 +780,23 @@ DeviceProfile_ANTFS.prototype = {
                                     // console.log("offset", download_response.dataOffset, "data length", download_response.data.length,"total remaining",download_response.totalRemainingLength);
 
                                     if (download_response.CRC !== currentCRCSeed) {
-                                        console.warn(Date.now() + " CRC of data block ", download_response.CRC, " differs from calculated CRC-16 of data block ", currentCRCSeed);
 
-                                        resumeIndex = self.deviceProfile.dataOffset.length - 2;
-                                        currentDataOffset = self.deviceProfile.dataOffset[resumeIndex] + self.deviceProfile.dataLength[resumeIndex];
-                                        currentCRCSeed = self.deviceProfile.CRCSeed[resumeIndex];
+                                        console.warn(Date.now() + "Block ",self.deviceProfile.dataOffset.length-1," CRC of data block ", download_response.CRC, " differs from calculated CRC-16 of data block ", currentCRCSeed);
+
+                                        if (self.deviceProfile.dataOffset.length >= 2) {
+                                            resumeIndex = self.deviceProfile.dataOffset.length - 2;
+                                            currentDataOffset = self.deviceProfile.dataOffset[resumeIndex] + self.deviceProfile.dataLength[resumeIndex];
+                                            currentCRCSeed = self.deviceProfile.CRCSeed[resumeIndex];
+                                            downloadRequestType = DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER;
+                                        }
+                                        else // CRC error in block 1
+                                        {
+                                            resumeIndex = 0;
+                                            currentDataOffset = 0;
+                                            currentCRCSeed = 0;
+                                            downloadRequestType = DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER;
+                                        }
+                                      
                                         // console.log(self.deviceProfile.dataOffset.length, self.deviceProfile.CRCSeed.length);
 
                                         removeLastBlock();
@@ -794,7 +808,7 @@ DeviceProfile_ANTFS.prototype = {
                                         currentDataOffset = download_response.dataOffset + download_response.totalRemainingLength;
 
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, currentDataOffset,
-                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
+                                        downloadRequestType, currentCRCSeed, 0);
 
                                     // Kick in retry if no burst response
 
@@ -804,7 +818,7 @@ DeviceProfile_ANTFS.prototype = {
                                             console.log(Date.now() + " Received no burst response for previous download request in about ", DeviceProfile_ANTFS.prototype.REQUEST_BURST_RESPONSE_DELAY, "ms. Retrying " + self.deviceProfile.timeoutRetry);
 
                                             self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, currentDataOffset,
-                                        DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER, currentCRCSeed, 0);
+                                         downloadRequestType, currentCRCSeed, 0);
                                         } else {
                                             console.log(Date.now() + " Something is wrong with the link to the device. Cannot proceed. Reached maximum retries.", self.deviceProfile.timeoutRetry);
                                             process.kill(process.pid, 'SIGINT');
@@ -1757,6 +1771,9 @@ DeviceProfile_SPDCAD.prototype = {
 };
 
 function Node() {
+
+    console.log("ANTFSNODE version ", Node.prototype.VERSION);
+
     var self = this;
     self.commandQueue = [];
     self.commandIndex = [];
@@ -1811,6 +1828,8 @@ function Node() {
 }
 
 Node.prototype = {
+
+    VERSION: "0.1",
 
     WEBSOCKET_HOST: 'localhost',
     WEBSOCKET_PORT: 8093,
@@ -1932,7 +1951,7 @@ Node.prototype = {
         self.wss = new WebSocketServer({ host: Node.prototype.WEBSOCKET_HOST, port: Node.prototype.WEBSOCKET_PORT, clientTracking: true });
 
         self.wss.on('listening', function () {
-            console.log(Date.now() + " WebsocketServer: listening on " + Node.prototype.WEBSOCKET_HOST + ":" + Node.prototype.WEBSOCKET_PORT);
+            console.log("WebsocketServer: listening on " + Node.prototype.WEBSOCKET_HOST + ":" + Node.prototype.WEBSOCKET_PORT);
         });
 
         self.wss.on('connection', function (ws) {
@@ -2372,20 +2391,20 @@ ANT.prototype = {
         var msg;
 
         if (data[3] === 0)
-            msg = "POWER_ON_RESET";
+            msg = "POWER_ON_RESET (cold reset)";
         else if (data[3] === 1)
             msg = "HARDWARE_RESET_LINE";
         else if (data[3] & (1 << 2))
             msg = "WATCH_DOG_RESET";
         else if (data[3] & (1 << 5))
-            msg = "COMMAND_RESET";
+            msg = "COMMAND_RESET (warm reset)";
         else if (data[3] & (1 << 6))
             msg = "SYNCHRONOUS_RESET";
         else if (data[3] & (1 << 7))
             msg = "SUSPEND_RESET";
 
        
-            console.log(msg);
+        console.log("Startup notification ",msg);
 
         return msg;
 
@@ -2888,7 +2907,7 @@ Content = Buffer
     parseDeviceSerialNumber: function (data,overwrite) {
         // SN 4 bytes Little Endian
         var sn = data.readUInt32LE(3),
-          msg = "Device serial number: " + sn,
+          msg = "ANT device serial number: " + sn,
             self = this;
 
         if (typeof self.serialNumber === "undefined")
@@ -3201,6 +3220,7 @@ Content = Buffer
             inTransferType;
         //  usb.setDebugLevel(3);
 
+        
         //var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
 
         self.device = usb.findByIds(self.idVendor, self.idProduct);
@@ -3209,10 +3229,10 @@ Content = Buffer
             console.log("Could not find USB ANT device vendor id:" + self.idVendor + " product id.:" + self.idProduct);
             errorCallback();
         } else {
-            console.log("Found device  on bus " + self.device.busNumber + " address " + self.device.deviceAddress + ", max packet size endpoint 0 for control: " + self.device.deviceDescriptor.bMaxPacketSize0 + " bytes, default transfer (non-stream) timeout ms.: " + self.device.timeout + ", packet size for endpoints in/out 64 bytes");
+            //console.log("Found device  on bus " + self.device.busNumber + " address " + self.device.deviceAddress + ", max packet size endpoint 0 for control: " + self.device.deviceDescriptor.bMaxPacketSize0 + " bytes, default transfer (non-stream) timeout ms.: " + self.device.timeout + ", packet size for endpoints in/out 64 bytes");
 
-            console.log("Opening interface on device GARMIN USB2 ANT+ wireless/nRF24AP2 (Dynastream Innovations Inc.)");
-            console.log("Vendor id: " + self.idVendor + " Product id: " + self.idProduct);
+            //console.log("Opening interface on device GARMIN USB2 ANT+ wireless/nRF24AP2 (Dynastream Innovations Inc.)");
+            //console.log("Vendor id: " + self.idVendor + " Product id: " + self.idProduct);
 
             self.device.open(); // Init/get interfaces of device
             //console.log("Default timeout for native libusb transfer is :" + ant.timeout);
@@ -3221,8 +3241,9 @@ Content = Buffer
             if (typeof self.antInterface === "undefined") {
                 console.log("Could not get interface to ant device, aborting");
                 errorCallback();
-            } else
-                console.log("Found default interface, it has " + self.antInterface.endpoints.length + " endpoints ");
+            } else {
+             //   console.log("Found default interface, it has " + self.antInterface.endpoints.length + " endpoints ");
+            }
 
             if (self.antInterface.endpoints.length < 2) {
                 console.log("Normal operation require 2 endpoints for in/out communication with ANT device");
@@ -3239,9 +3260,9 @@ Content = Buffer
                 outTransferType = "BULK (" + self.outEP.transferType + ')';
 
             // Shared endpoint number in/control and out
-            console.log("Number for endpoint: " + (self.inEP.address & 0xF) + " Control/in " + inTransferType + " - " + (self.outEP.address & 0xF) + " " + self.outEP.direction + " " + outTransferType);
+           // console.log("Number for endpoint: " + (self.inEP.address & 0xF) + " Control/in " + inTransferType + " - " + (self.outEP.address & 0xF) + " " + self.outEP.direction + " " + outTransferType);
 
-            console.log("Claiming interface");
+           // console.log("Claiming interface");
             self.antInterface.claim(); // Must call before attempting transfer on endpoints
 
             //self.listen();
@@ -3251,12 +3272,16 @@ Content = Buffer
             self.tryCleaningBuffers(
                 function () {
                     self.resetSystem(errorCallback, function _getCapabilities() {
+                        // Allow 500 ms after reset before continuing
+                        setTimeout(function infoRequest() {
 
-                        self.getCapabilities(function _getANTVersion() {
-                            self.getANTVersion(function _getDeviceSerialNumber() {
-                                self.getDeviceSerialNumber(callback);
+                            self.getCapabilities(function _getANTVersion() {
+                                self.getANTVersion(function _getDeviceSerialNumber() {
+                                    self.getDeviceSerialNumber(callback);
+                                });
                             });
-                        });
+                        }, 500);
+
                     });
                 });
 
