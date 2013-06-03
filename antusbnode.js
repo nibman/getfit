@@ -578,7 +578,7 @@ DeviceProfile_ANTFS.prototype = {
 
     DOWNLOAD_BUFFER_MB: 16, // Size of download buffer in MB
 
-    REQUEST_BURST_RESPONSE_DELAY: 1500, // Time in ms. to wait for burst response on a request before retrying previous request
+    REQUEST_BURST_RESPONSE_DELAY: 3000, // Time in ms. to wait for burst response on a request before retrying previous request
 
     ROOT_DIR: process.env.HOME + '\\ANTFSNODE',
 
@@ -633,6 +633,18 @@ DeviceProfile_ANTFS.prototype = {
                 console.warn(Date.now() + " No request callback specified");
         }
 
+        function repeatLastRequest() {
+            console.log(Date.now() + " Repeat request", self.deviceProfile.request);
+
+            if (self.deviceProfile.request.request === "download") {
+                self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, self.deviceProfile.request.dataOffset,
+                                       self.deviceProfile.initialRequest, self.deviceProfile.request.CRCSeed, 0, self.deviceProfile.request.callback); // Reuse previous callback for new request
+
+            }
+            else
+                console.warn(self.deviceProfile.request.request + " request not implemented");
+        }
+
         if (self.deviceProfile.timeoutID) {
             clearInterval(self.deviceProfile.timeoutID);
             self.deviceProfile.timeoutRetry = 0;
@@ -656,8 +668,10 @@ DeviceProfile_ANTFS.prototype = {
 
             } else {
                 // Packet 2 ANT-FS RESPONSE
-                if (data[8] !== DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID)
-                    console.error("Expected ANT-FS COMMAND ID 0x44 at start of packet 2", data);
+                if (data[8] !== DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID) {
+                    console.error("Expected ANT-FS COMMAND ID 0x44 at start of packet 2", data, "bytes:", data.length);
+                    repeatLastRequest();
+                }
                 else {
 
                     // ANT-FS Command responses
@@ -781,7 +795,7 @@ DeviceProfile_ANTFS.prototype = {
 
                                     if (download_response.CRC !== currentCRCSeed) {
 
-                                        console.warn(Date.now() + "Block ",self.deviceProfile.dataOffset.length-1," CRC of data block ", download_response.CRC, " differs from calculated CRC-16 of data block ", currentCRCSeed);
+                                        console.warn(Date.now() + " Block ", self.deviceProfile.dataOffset.length - 1, " CRC of data block ", download_response.CRC, " differs from calculated CRC-16 of data block ", currentCRCSeed);
 
                                         if (self.deviceProfile.dataOffset.length >= 2) {
                                             resumeIndex = self.deviceProfile.dataOffset.length - 2;
@@ -796,7 +810,7 @@ DeviceProfile_ANTFS.prototype = {
                                             currentCRCSeed = 0;
                                             downloadRequestType = DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER;
                                         }
-                                      
+
                                         // console.log(self.deviceProfile.dataOffset.length, self.deviceProfile.CRCSeed.length);
 
                                         removeLastBlock();
@@ -808,7 +822,7 @@ DeviceProfile_ANTFS.prototype = {
                                         currentDataOffset = download_response.dataOffset + download_response.totalRemainingLength;
 
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, currentDataOffset,
-                                        downloadRequestType, currentCRCSeed, 0);
+                                        downloadRequestType, currentCRCSeed, 0, self.deviceProfile.request.callback); // Reuse previous callback for new request
 
                                     // Kick in retry if no burst response
 
@@ -818,7 +832,7 @@ DeviceProfile_ANTFS.prototype = {
                                             console.log(Date.now() + " Received no burst response for previous download request in about ", DeviceProfile_ANTFS.prototype.REQUEST_BURST_RESPONSE_DELAY, "ms. Retrying " + self.deviceProfile.timeoutRetry);
 
                                             self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, currentDataOffset,
-                                         downloadRequestType, currentCRCSeed, 0);
+                                         downloadRequestType, currentCRCSeed, 0, self.deviceProfile.request.callback);
                                         } else {
                                             console.log(Date.now() + " Something is wrong with the link to the device. Cannot proceed. Reached maximum retries.", self.deviceProfile.timeoutRetry);
                                             process.kill(process.pid, 'SIGINT');
@@ -1236,7 +1250,9 @@ DeviceProfile_ANTFS.prototype = {
                 directoryLastModifiedDateTime: data.readUInt32LE(12),
             },
             index: [],
-            newIndex: [],
+            newIndex: [], // Index of new files
+            downloadIndex: [], //Index of readable/downloadable files
+            eraseIndex: [] // Index of erasable files
         };
 
         structureLength = self.deviceProfile.directory.header.structureLength;
@@ -1280,7 +1296,7 @@ DeviceProfile_ANTFS.prototype = {
             }
 
             if (date === 0xFFFFFFFF || date === 0x00)
-                dateStr = "UnknownDate";
+                dateStr = "UnknownDate"+'-'+date+'-'+Date.now().toString();
             else if (date < 0x0FFFFFFF)
                 dateStr = "System-Custom " + date;
             else if (this.date !== 0)
@@ -1314,20 +1330,24 @@ DeviceProfile_ANTFS.prototype = {
 
             date = getDateAsString(this.date);
 
-            if (this.generalFlags.read)
+            if (this.generalFlags.read) 
                 generalFlags += "download";
+
             if (this.generalFlags.write)
                 generalFlags += '_upload';
+
             if (this.generalFlags.erase)
                 generalFlags += '_erase';
+             
             if (this.generalFlags.archive)
                 generalFlags += '_archive';
-            if (!this.generalFlags.archive) {
+
+            if (!this.generalFlags.archive) 
                 generalFlags += '_NEW';
-                self.deviceProfile.directory.newIndex.push(this.index); // Keeps the index new files
-            }
+          
             if (this.generalFlags.append)
                 generalFlags += '_append';
+
             if (this.generalFlags.crypto)
                 generalFlags += '_crypto';
 
@@ -1376,6 +1396,16 @@ DeviceProfile_ANTFS.prototype = {
                 date: data.readUInt32LE(28 + addIndex)
             };
 
+            // Update index for new,downloadable,erasable files
+            if (!file.generalFlags.archive)
+              self.deviceProfile.directory.newIndex.push(file.index); // Keeps the index new files
+
+            if (file.generalFlags.read)
+                self.deviceProfile.directory.downloadIndex.push(file.index);
+
+            if (file.generalFlags.erase)
+                self.deviceProfile.directory.eraseIndex.push(file.index);
+
             totalBytesInDirectory += file.size;
 
             if (file.dataType === 0x80) // FIT 
@@ -1399,10 +1429,21 @@ DeviceProfile_ANTFS.prototype = {
         }
 
         console.log("Total bytes in directory : ", totalBytesInDirectory);
+
         if (self.deviceProfile.directory.newIndex.length > 0)
             console.log("New files : ", self.deviceProfile.directory.newIndex.length);
         else
-            console.log("All files archived");
+            console.log("All files archived/previously downloaded");
+
+        if (self.deviceProfile.directory.downloadIndex.length > 0)
+            console.log("Downloadable/readable files : ", self.deviceProfile.directory.downloadIndex.length);
+        else
+            console.log("No downloadable/readable files available");
+
+        if (self.deviceProfile.directory.eraseIndex.length > 0)
+            console.log("Erasable files : ", self.deviceProfile.directory.eraseIndex.length);
+        else
+            console.log("No erasable files in directory");
 
         //console.log(self.deviceProfile.directory);
     },
@@ -1415,13 +1456,22 @@ DeviceProfile_ANTFS.prototype = {
         //     dataParser = self.nodeInstance.deviceProfile_ANTFS.parseDirectory;
 
         if (initialRequest === DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER) {
+            if (typeof downloadFinishedCB === "undefined")
+                console.warn(Date.now() + " No callback specified for further processing after download");
+
             self.deviceProfile.request = {
                 timestamp: Date.now(),
                 request: 'download',
                 dataIndex: dataIndex,
+                initialRequest : initialRequest,
                 //parser: dataParser,
                 callback: downloadFinishedCB, // When download is finished
             };
+        } else {
+            self.deviceProfile.request.dataOffset = dataOffset;
+            self.deviceProfile.request.CRCSeed = CRCSeed;
+            self.deviceProfile.request.maximumBlockSize = maximumBlockSize;
+            self.deviceProfile.initialRequest = initialRequest;
         }
 
         // console.log(Date.now() + "dataIndex:", dataIndex, "offset:", dataOffset, "initreq.:", initialRequest, "crcseed:", CRCSeed, "maxblocksize:", maximumBlockSize);
@@ -1430,8 +1480,8 @@ DeviceProfile_ANTFS.prototype = {
 
         function retry() {
             if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
-                console.log(Date.now() + " Client is busy. Delaying burst of download request with 250 ms");
-                setTimeout(function () { retry(); }, 250);
+                console.log(Date.now() + " Client is busy. Delaying burst of download request with 1000 ms");
+                setTimeout(function () { retry(); }, 1000);
             }
             else
                 self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error() { console.log(Date.now() + " Failed to send burst transfer with download request"); },
@@ -1672,7 +1722,9 @@ DeviceProfile_ANTFS.prototype = {
                     if (typeof self.deviceProfile.processingCommand === "undefined") { // Can only process one command at a time
                         self.deviceProfile.processingCommand = true;
 
+                        console.log("COMMAND QUEUE:",self.nodeInstance.commandQueue);
                         currentCommand = self.nodeInstance.commandQueue.shift(); // Take next command
+                      
 
                         if (typeof currentCommand === "undefined") {
                             console.warn(Date.now() + " No commands available for further processing");
@@ -1684,23 +1736,33 @@ DeviceProfile_ANTFS.prototype = {
                             switch (currentCommand) {
 
                                 case Node.prototype.COMMAND.DOWNLOAD_NEW:
+                                case Node.prototype.COMMAND.DOWNLOAD_ALL:
 
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
                                             DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
                                             DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER, 0, 0,
                                             function completeCB() {
                                                 // var self = this;
+                                                var genericIndex;
 
                                                 self.nodeInstance.deviceProfile_ANTFS.parseDirectory.call(self, self.deviceProfile.response.downloadFile);
 
-                                                if (self.deviceProfile.directory.newIndex.length > 0) {
-                                                    self.deviceProfile.downloadMultipleFiles.call(self, self.deviceProfile.directory.newIndex, function complete() {
-                                                        console.log(Date.now() + " Downloaded new files");
+                                                
+                                                if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_NEW)
+                                                    genericIndex = self.deviceProfile.directory.newIndex;
+                                                else
+                                                    genericIndex = self.deviceProfile.directory.downloadIndex;
+
+                                                if (genericIndex.length > 0) {
+                                                    self.deviceProfile.downloadMultipleFiles.call(self, genericIndex, function complete() {
+                                                        //console.log(Date.now() + " Downloaded new files");
                                                         delete self.deviceProfile.processingCommand; // Allow processing of next command
                                                     });
 
-                                                } else
-                                                    console.log(Date.now() + " No new files available/every file has been downloaded");
+                                                } else {
+                                                    console.log(Date.now() + " No files available for download");
+                                                    delete self.deviceProfile.processingCommand; // Allow processing of next command
+                                                }
                                             });
 
                                     break;
@@ -1786,9 +1848,13 @@ function Node() {
     Node.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
     console.log("Startup directory :", Node.prototype.STARTUP_DIRECTORY);
 
-    if (process.argv[2] === "-d") {
-        self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
-    } else if (process.argv[2] === "-e") {
+    if (process.argv[2] === "-d" || process.argv[2] === "--download") {
+        if (typeof process.argv[3] === "undefined")
+            self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
+        else if (process.argv[3] === "*")
+            self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_ALL);
+
+    } else if (process.argv[2] === "-e" || process.argv[2] === "--erase") {
         self.commandQueue.push(Node.prototype.COMMAND.ERASE_FILE);
         if (typeof process.argv[3] === "undefined" || isNaN(parseInt(process.argv[3], 10))) {
             console.log("Missing file index or file index is not a number");
@@ -1805,10 +1871,10 @@ function Node() {
 
     function showUsage() {
         console.log("Commands :");
-        console.log("   -d - download new files from device");
+        console.log("   -d, --download - download new files from device");
         console.log("   -d n - download file at index n");
-        console.log("   -d * - download all files");
-        console.log("   -e n - erase file at index n");
+        console.log("   -d * - download all readable files");
+        console.log("   -e, --erase  n - erase file at index n");
     }
 
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
@@ -1838,6 +1904,7 @@ Node.prototype = {
     WEBSOCKET_PORT: 8093,
 
     COMMAND: {
+        DOWNLOAD_ALL: 0x02,
         DOWNLOAD_NEW: 0x00,
         ERASE_FILE: 0x01,
     },
@@ -2492,7 +2559,13 @@ ANT.prototype = {
 
         //console.log("parse_response", this);
 
+        // Check for valid SYNC byte at start
+
+
+
+
         var antInstance = this,
+            firstSYNC = data[0],
             msgID = data[2],
             msgCode,
             channelNr,
@@ -2504,6 +2577,11 @@ ANT.prototype = {
             resendMsg,
             burstMsg,
             burstParser;
+
+            if (firstSYNC !== ANT.prototype.SYNC) {
+                console.error(Date.now() + " Invalid SYNC byte ", firstSYNC, "expected ", ANT.prototype.SYNC, "discarding data",data,"bytes:",data.length);
+                return;
+            }
 
         switch (msgID) {
 
@@ -3120,7 +3198,7 @@ Content = Buffer
         self.antInterface.release(function (error) {
             if (error) console.log("Problem with release of interface: ", error);
             else {
-                console.log("Closing device, removing interface, exiting...");
+                //console.log("Closing device, removing interface, exiting...");
                 self.device.close();
                 process.exit();
             }
@@ -3135,7 +3213,9 @@ Content = Buffer
         },
             function success() {
 
-                console.log(self.channelConfiguration[channelNrSeed].channelStatus.toString());
+                if (self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.SEARCHING || 
+                    self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.TRACKING)
+                   console.log(self.channelConfiguration[channelNrSeed].channelStatus.toString());
 
                 function reIterate() {
                     ++channelNrSeed;
@@ -3167,20 +3247,18 @@ Content = Buffer
         var self = this, channelNr;
 
         if (self.inTransfer) {
-            console.log("Canceling transfer on in endpoint");
+            //console.log("Canceling transfer on in endpoint");
             self.inTransfer.cancel(); // Trigger transferCancelCB
         }
-
 
         // Empty buffers please
 
         // self.tryCleaningBuffers(function () {
 
         if (self.outTransfer) {
-            console.log("Canceling transfer on out endpoint");
+           // console.log("Canceling transfer on out endpoint");
             self.outTransfer.cancel();
         }
-
 
         // });
     },
@@ -3630,7 +3708,7 @@ Content = Buffer
         //console.log("Closing channel "+ucChannel);
         var close_channel_msg, self = this;
         var channel = this.channelConfiguration[channelConfNr];
-        console.log("Closing channel " + channel.number);
+        //console.log("Closing channel " + channel.number);
         close_channel_msg = this.create_message(this.ANT_MESSAGE.close_channel, new Buffer([channel.number]));
         this.sendOnly(close_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, 500, errorCallback,
             function success() {
