@@ -1783,6 +1783,9 @@ function Node() {
     //    return;
     //}
 
+    Node.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
+    console.log("Startup directory :", Node.prototype.STARTUP_DIRECTORY);
+
     if (process.argv[2] === "-d") {
         self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
     } else if (process.argv[2] === "-e") {
@@ -1872,6 +1875,7 @@ Node.prototype = {
     },
 
     start: function () {
+       // console.log(process);
         var self = this;
 
         self.heartBeat = 0;
@@ -1896,7 +1900,6 @@ Node.prototype = {
         });
 
         // Channel configurations indexed by channel nr.
-
 
         self.ANT.channelConfiguration[0] = self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT, 0, 0, 0, ANT.prototype.INFINITE_SEARCH);
         self.ANT.channelConfiguration[1] = self.deviceProfile_ANTFS.getSlaveChannelConfiguration(Network.prototype.ANT_FS, 1, 0, 0, 0);
@@ -1975,17 +1978,48 @@ Node.prototype = {
 };
 
 function Network(nr, key) {
+    var self = this;
     this.number = nr;
-    this.key = key;
+    if (typeof key === "string") // Filename
+       this.key = this.getNetworkKey(key);
+    else
+        this.key = key;
 }
+
+
 
 Network.prototype = {
     NETWORK_KEY: {
-        ANTFS: [0xa8, 0xa4, 0x23, 0xb9, 0xf5, 0x5e, 0x63, 0xc1], // For accessing Garmin ANT-FS
-        ANT: [0xB9, 0xA5, 0x21, 0xFB, 0xBD, 0x72, 0xC3, 0x45] // ANT+ managed network key, i.e HRM device profile -- TO DO : Move to a file to not violate shared licence
+        ANTFS: "ANT-FS.BIN",
+        ANT: "ANT-PLUS.BIN" // ANT+ managed network key filename , i.e HRM device profile 
     },
     ANT: 0,      // Separate networks due to different keys
     ANT_FS: 1,
+
+    getNetworkKey: function (fileName, completeCB) {
+        //fs.readFile(DeviceProfile_ANTFS.prototype.ROOT_DIR + '\\'+fileName, function (err, networkKey) {
+        //    if (err) throw err;
+
+        //    if (typeof completeCB === "function")
+        //        completeCB(networkKey);
+        //    else
+        //        console.log(Date.now() + " No completion callback specified");
+        //});
+        // Only 8 bytes -> sync operation
+        var fullFileName = Node.prototype.STARTUP_DIRECTORY + '\\' + fileName;
+
+        if (typeof Network.prototype.keyCache === "undefined")
+            Network.prototype.keyCache = {};
+
+        if (typeof Network.prototype.keyCache[fileName] === "undefined") {
+            //console.log("Getting key from file ", fullFileName);
+            Network.prototype.keyCache[fileName] = fs.readFileSync(fullFileName);
+        }
+        //else
+        //    console.log("Fetcing key from keycache filename:", fileName, " cached key", Network.prototype.keyCache[fileName]);
+
+        return Network.prototype.keyCache[fileName];
+    }
 };
 
 function Channel(channelNr, channelType, networkNr) {
@@ -2005,6 +2039,16 @@ function Channel(channelNr, channelType, networkNr, networkKey) {
     //this.ANTEngine = new ANT(host, this);
 
 }
+
+function Channel(channelNr, channelType, networkNr, fileName) {
+    //this.host = host;
+    this.number = channelNr;
+    this.channelType = channelType;
+    this.network = new Network(networkNr, fileName);
+    //this.ANTEngine = new ANT(host, this);
+
+}
+
 
 Channel.prototype = {
 
@@ -3382,7 +3426,7 @@ Content = Buffer
         var self = this;
         var channel = this.channelConfiguration[channelConfNr];
 
-        //console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key);
+       // console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key);
 
         self.sendOnly(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]), new Buffer(channel.network.key)])),
         ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
