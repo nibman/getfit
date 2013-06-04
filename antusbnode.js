@@ -762,6 +762,14 @@ DeviceProfile_ANTFS.prototype = {
                                     self.deviceProfile.dataLength = [];
                                 }
 
+                                //console.log("Response", download_response);
+                                //console.log("Download Data length", download_response.data.length);
+                                //console.log("Data length", data.length);
+                                //console.log("Last packet of data", data.slice(-8));
+
+                                //for (var eNr = 0; eNr < data.length; eNr++)
+                                //    console.log(eNr,data[eNr]);
+
                                 // Put the data chunck received into our buffer at the specified offset
                                 download_response.data.copy(self.deviceProfile.downloadFile, download_response.dataOffset);
 
@@ -1737,6 +1745,7 @@ DeviceProfile_ANTFS.prototype = {
 
                                 case Node.prototype.COMMAND.DOWNLOAD_NEW:
                                 case Node.prototype.COMMAND.DOWNLOAD_ALL:
+                                case Node.prototype.COMMAND.DOWNLOAD_MULTIPLE:
 
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
                                             DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
@@ -1750,8 +1759,13 @@ DeviceProfile_ANTFS.prototype = {
                                                 
                                                 if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_NEW)
                                                     genericIndex = self.deviceProfile.directory.newIndex;
-                                                else
+                                                else if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_ALL)
                                                     genericIndex = self.deviceProfile.directory.downloadIndex;
+                                                else if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_MULTIPLE) {
+
+                                                    genericIndex = self.nodeInstance.commandIndex[0];
+                                                    console.log("genericIndex", genericIndex);
+                                                }
 
                                                 if (genericIndex.length > 0) {
                                                     self.deviceProfile.downloadMultipleFiles.call(self, genericIndex, function complete() {
@@ -1833,6 +1847,7 @@ DeviceProfile_SPDCAD.prototype = {
 };
 
 function Node() {
+  
 
     console.log("ANTFSNODE version ", Node.prototype.VERSION);
 
@@ -1845,14 +1860,28 @@ function Node() {
     //    return;
     //}
 
+    function parseIndex(indexArg) {
+        var parsed = indexArg.split(',').map(function (value, index, arr) { var v = parseInt(value, 10); if (v !== NaN) return v; })
+        console.log("Parsed", parsed);
+        return parsed;
+    }
+
     Node.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
     console.log("Startup directory :", Node.prototype.STARTUP_DIRECTORY);
+
+    console.log("argv", process.argv);
 
     if (process.argv[2] === "-d" || process.argv[2] === "--download") {
         if (typeof process.argv[3] === "undefined")
             self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
         else if (process.argv[3] === "*")
             self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_ALL);
+        else {
+            self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_MULTIPLE); // i.e 1,2,3
+            //argNr = 3;
+            self.commandIndex.push(parseIndex(process.argv[3]));
+        }
+
 
     } else if (process.argv[2] === "-e" || process.argv[2] === "--erase") {
         self.commandQueue.push(Node.prototype.COMMAND.ERASE_FILE);
@@ -1873,6 +1902,7 @@ function Node() {
         console.log("Commands :");
         console.log("   -d, --download - download new files from device");
         console.log("   -d n - download file at index n");
+        console.log("   -d 'n1,n2' -download file at index n1 and n2")
         console.log("   -d * - download all readable files");
         console.log("   -e, --erase  n - erase file at index n");
     }
@@ -1904,6 +1934,7 @@ Node.prototype = {
     WEBSOCKET_PORT: 8093,
 
     COMMAND: {
+        DOWNLOAD_MULTIPLE : 0x03,
         DOWNLOAD_ALL: 0x02,
         DOWNLOAD_NEW: 0x00,
         ERASE_FILE: 0x01,
@@ -2639,7 +2670,6 @@ ANT.prototype = {
 
                 // Call channel event/response-handler for each channel
 
-
                 antInstance.channelConfiguration[channelNr].channelResponseEvent(data);
 
                 break;
@@ -2669,7 +2699,6 @@ ANT.prototype = {
                 antInstance.channelConfiguration[channelID.channelNumber].transmissionType = channelID.transmissionType;
 
                 msgStr += ANT.prototype.ANT_MESSAGE.set_channel_id.friendly + " " + channelID.toString();
-
 
                 break;
 
@@ -2747,15 +2776,25 @@ ANT.prototype = {
                     // console.log(payloadData);
 
                     if (sequenceNr === 0x00) // First packet 
+                    {
+                       // console.time('burst');
+                        antInstance.channelConfiguration[channelNr].startBurstTimestamp = Date.now();
 
                         antInstance.channelConfiguration[channelNr].burstData = payloadData; // Payload 8 bytes
-
+                    }
                     else if (sequenceNr > 0x00)
 
                         antInstance.channelConfiguration[channelNr].burstData = Buffer.concat([antInstance.channelConfiguration[channelNr].burstData, payloadData]);
 
                     if (sequenceNr & 0x04) // msb set === last packet 
                     {
+                        //console.timeEnd('burst');
+                        antInstance.channelConfiguration[channelNr].endBurstTimestamp = Date.now();
+                        
+
+                        var diff = antInstance.channelConfiguration[channelNr].endBurstTimestamp - antInstance.channelConfiguration[channelNr].startBurstTimestamp;
+
+                       // console.log("Burst time", diff, " bytes/sec", (antInstance.channelConfiguration[channelNr].burstData.length / (diff / 1000)).toFixed(1), "bytes:", antInstance.channelConfiguration[channelNr].burstData.length);
                         // console.log("Burst data:", antInstance.channelConfiguration[channelNr].burstData);
                         burstMsg = antInstance.burstQueue[channelNr][0];
                         if (typeof burstMsg !== "undefined")
@@ -3732,6 +3771,7 @@ Content = Buffer
                                          //self.parse_response(data);
 
                                          // Wait for EVENT_CHANNEL_CLOSED
+                                         // If channel status is tracking -> can get broadcast data packet before channel close packet
 
                                          function retryEvent() {
 
