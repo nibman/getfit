@@ -16,7 +16,7 @@ DeviceProfile.prototype = {
 
     DEVICE_TYPE: 0x00,
 
-    parseBurstData: function (data) {
+    parseBurstData: function (channelNr,data) {
         console.log("Parse burst data", data);
     },
 
@@ -429,6 +429,7 @@ function DeviceProfile_ANTFS(nodeInstance) {
     this.nodeInstance = nodeInstance;
 
     this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BROADCAST, this.broadCastDataParser);
+    this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BURST, this.parseBurstData);
 
     this.state = DeviceProfile_ANTFS.prototype.STATE.INIT; // Init state before first LINK beacon received from device
     //this.stateCounter[DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER] = 0;
@@ -612,8 +613,8 @@ DeviceProfile_ANTFS.prototype = {
         return this.homeDirectory;
     },
 
-    parseBurstData: function (data, parser) {
-        var self = this, beacon, numberOfPackets = data.length / 8,
+    parseBurstData: function (channelNr,data, parser) {
+        var self = this.channelConfiguration[channelNr], beacon, numberOfPackets = data.length / 8,
             authenticate_response = {}, packetNr,
             download_response = {}, currentCRCSeed,
             erase_response = {},
@@ -650,6 +651,9 @@ DeviceProfile_ANTFS.prototype = {
             else
                 console.warn(self.deviceProfile.request.request + " request not implemented");
         }
+
+        if (channelNr !== self.number) // Filter out burst for other channels
+            return;
 
         if (self.deviceProfile.timeoutID) {
             clearInterval(self.deviceProfile.timeoutID);
@@ -733,7 +737,7 @@ DeviceProfile_ANTFS.prototype = {
                             }
 
                             // add authenticateResponse to device profile instance
-                            this.deviceProfile.authenticate_response = authenticate_response;
+                            self.deviceProfile.authenticate_response = authenticate_response;
 
                             console.log(Date.now(), authenticate_response, DeviceProfile_ANTFS.prototype.AUTHENTICATE_RESPONSE[authenticate_response.responseType]);
                             break;
@@ -2372,7 +2376,8 @@ ANT.prototype.EVENT = {
     DEVICE_SERIAL_NUMBER: 'deviceSerialNumber',
     ANT_VERSION: 'ANTVersion',
     CAPABILITIES: 'deviceCapabilities',
-    BROADCAST : 'broadcast',
+    BROADCAST: 'broadcast',
+    BURST: 'burst'
 
 };
 
@@ -2806,6 +2811,8 @@ ANT.prototype.parse_response = function (data) {
 
     switch (msgID) {
 
+        // Data
+
         case ANT.prototype.ANT_MESSAGE.burst_transfer_data.id:
 
             channelNr = data[3] & 0x1F; // 5 lower bits
@@ -2849,13 +2856,44 @@ ANT.prototype.parse_response = function (data) {
                     if (typeof burstMsg !== "undefined")
                         burstParser = burstMsg.parser;
 
-                    antInstance.channelConfiguration[channelNr].parseBurstData(antInstance.channelConfiguration[channelNr].burstData, burstParser);
+                    if (!antInstance.emit(ANT.prototype.EVENT.BURST, channelNr, antInstance.channelConfiguration[channelNr].burstData, burstParser))
+                        console.warn("No listener for event ANT.prototype.EVENT.BURST");
+
+                    //antInstance.channelConfiguration[channelNr].parseBurstData(antInstance.channelConfiguration[channelNr].burstData, burstParser);
                 }
             }
             else {
                 console.trace();
                 console.error("Cannot handle this message of %d bytes ", msgLength);
             }
+
+            break;
+
+        case ANT.prototype.ANT_MESSAGE.broadcast_data.id:
+            msgStr += ANT.prototype.ANT_MESSAGE.broadcast_data.friendly + " ";
+
+            channelNr = data[3];
+            msgStr += " on channel " + channelNr;
+
+            // Check for updated channel ID to the connected device
+
+            if (typeof antInstance.channelConfiguration[channelNr].hasUpdatedChannelID === "undefined") {
+
+                antInstance.getUpdatedChannelID(channelNr,
+                    function error() {
+                        console.error("Failed not get updated channel ID");
+                    },
+                   function success(data) {
+                       antInstance.channelConfiguration[channelNr].hasUpdatedChannelID = true;
+                   });
+
+            }
+
+            // Call to broadcast handler for channel
+            if (!antInstance.emit(ANT.prototype.EVENT.BROADCAST, data))
+                console.warn("No listener for event ANT.prototype.EVENT.BROADCAST");
+
+            //antInstance.channelConfiguration[channelNr].broadCastDataParser(data);
 
             break;
 
@@ -2875,7 +2913,7 @@ ANT.prototype.parse_response = function (data) {
            
             break;
 
-            // Channel event or responses
+        // Channel event or responses
 
         case ANT.prototype.ANT_MESSAGE.channel_response.id:
 
@@ -2956,35 +2994,7 @@ ANT.prototype.parse_response = function (data) {
             
             break;
 
-            // Data
-
-        case ANT.prototype.ANT_MESSAGE.broadcast_data.id:
-            msgStr += ANT.prototype.ANT_MESSAGE.broadcast_data.friendly + " ";
-
-            channelNr = data[3];
-            msgStr += " on channel " + channelNr;
-
-            // Check for updated channel ID to the connected device
-
-            if (typeof antInstance.channelConfiguration[channelNr].hasUpdatedChannelID === "undefined") {
-
-                antInstance.getUpdatedChannelID(channelNr,
-                    function error() {
-                        console.error("Failed not get updated channel ID");
-                    },
-                   function success(data) {
-                       antInstance.channelConfiguration[channelNr].hasUpdatedChannelID = true;
-                   });
-
-            }
-
-            // Call to broadcast handler for channel
-            if (!antInstance.emit(ANT.prototype.EVENT.BROADCAST,data))
-                console.warn("No listener for event ANT.prototype.EVENT.BROADCAST");
-
-            //antInstance.channelConfiguration[channelNr].broadCastDataParser(data);
-            
-            break;
+          
 
         default:
             msgStr += "* NO parser specified *";
