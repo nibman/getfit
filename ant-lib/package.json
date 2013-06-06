@@ -1,0 +1,2 @@
+{ "name" : "ant-library",
+  "main" : "./ant.js" }
