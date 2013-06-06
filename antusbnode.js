@@ -427,6 +427,9 @@ DeviceProfile_SDM.prototype = {
 function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
+
+    this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BROADCAST, this.broadCastDataParser);
+
     this.state = DeviceProfile_ANTFS.prototype.STATE.INIT; // Init state before first LINK beacon received from device
     //this.stateCounter[DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER] = 0;
     //this.stateCounter[DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER] = 0;
@@ -583,6 +586,7 @@ DeviceProfile_ANTFS.prototype = {
     REQUEST_BURST_RESPONSE_DELAY: 3000, // Time in ms. to wait for burst response on a request before retrying previous request
 
     ROOT_DIR: process.env.HOME + '\\ANTFSNODE',
+
 
     setHomeDirectory: function (homeDir) {
         var self = this; // Keep our this reference in callbacks please!
@@ -1609,16 +1613,24 @@ DeviceProfile_ANTFS.prototype = {
                                          }); // Request device return to LINK layer
     },
 
-
+    // Listener for broadcast event for all channels -> must filter
+    // When this function is called from emit function of EventEmitter -> this will be the eventEmitter = ANT instance
+    // This can be verified by looking at the code for emit in REPL console : console.log((new (require('events').EventEmitter)).emit.toString()) ->
+    // event handler is called using handler.call(this=ANT Instance,...)
     broadCastDataParser: function (data) {
         var beaconID = data[4], channelNr = data[3],
-            beacon, self = this, retryLINK = 0,  currentCommand;
+            beacon, self = this.channelConfiguration[channelNr],
+            retryLINK = 0, currentCommand;
         // Check for valid beacon ID 0x43 , p. 45 ANT-FS Technical Spec.
 
+        // Important !
+        if (channelNr !== self.number) // Only handle channel broadcast for this particular channel (FILTER OUT OTHER CHANNELS)
+            return;
 
         if (typeof self.deviceProfile.DONT_CONNECT !== "undefined")  // Prevent re-connection for 10 seconds after a disconnect command is sent to the device
             return;
 
+        
         //if (beaconID !== DeviceProfile_ANTFS.prototype.BEACON_ID)
         //    console.log(Date.now()+" Got a normal broadcast. Awaiting beacon broadcast from device.", data);
         if (beaconID === DeviceProfile_ANTFS.prototype.BEACON_ID) {
@@ -1698,7 +1710,7 @@ DeviceProfile_ANTFS.prototype = {
 
                 case DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER:
                     // One exception is EVENT_TRANSFER_TX_FAILED of link command (but device got the command and still sends AUTHENTICATION BEACON)  
-                    this.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER;// Follow same state in host as the device/client;
+                    self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER;// Follow same state in host as the device/client;
 
                     delete self.deviceProfile.sendingLINK;
 
@@ -1985,7 +1997,7 @@ function Node() {
     }
 
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
-    this.ANT = new ANT(4047, 4104);
+    this.ANT = new ANT(4047, 4104,this);
 
     this.deviceProfile_HRM = new DeviceProfile_HRM(this);
     this.deviceProfile_SDM = new DeviceProfile_SDM(this);
@@ -2107,19 +2119,6 @@ Node.prototype = {
                 });
             });
         });
-
-        // setTimeout(function () {
-        //     self.ANTEngine.send(ANT_ResetSystem(false), DEFAULT_RETRY, 50,
-        //         function (data) { return isStartupNotification(data); },
-        //         function () { console.log("Could not reset device, try to reinsert USB stick to clean up buffers and drivers."); exitApplication(); },
-        //         function (data) {
-        //         //parse_response(data);
-        //         console.log("Reset system OK");
-        //         self.initLinkLayer();
-        //        
-        //     });
-        // }, 500); // Allow 500ms after reset before proceeding
-
 
         // Start websocket server
 
@@ -2309,13 +2308,15 @@ Channel.prototype = {
 };
 
 // Low level API/interface to ANT USB stick
-function ANT(idVendor, idProduct) {
+function ANT(idVendor, idProduct, nodeInstance) {
     events.EventEmitter.call(this); // Call super constructor
 
     // this.channel = channel;
     // this.host = host;
     this.idVendor = idVendor;
     this.idProduct = idProduct;
+
+    this.nodeInstance = nodeInstance;
 
     this.retryQueue = {}; // Queue of packets that are sent as acknowledged using the stop-and wait ARQ-paradigm, initialized when parsing capabilities (number of ANT channels of device) -> a retry queue for each channel
     this.burstQueue = {}; // Queue outgoing burst packets and optionally adds a parser to the burst response
@@ -2331,7 +2332,7 @@ function ANT(idVendor, idProduct) {
     this.addListener(ANT.prototype.EVENT.SET_CHANNEL_ID, this.parseChannelID);
     this.addListener(ANT.prototype.EVENT.DEVICE_SERIAL_NUMBER, this.parseDeviceSerialNumber);
     this.addListener(ANT.prototype.EVENT.ANT_VERSION, this.parseANTVersion);
-
+    this.addListener(ANT.prototype.EVENT.CAPABILITIES, this.parseCapabilities);
 }
 
 // Let ANT inherit from EventEmitter http://nodejs.org/api/util.html#util_util_inherits_constructor_superconstructor
@@ -2369,7 +2370,9 @@ ANT.prototype.EVENT = {
     SET_CHANNEL_ID: 'setChannelId',
 
     DEVICE_SERIAL_NUMBER: 'deviceSerialNumber',
-    ANT_VERSION : 'ANTVersion'
+    ANT_VERSION: 'ANTVersion',
+    CAPABILITIES: 'deviceCapabilities',
+    BROADCAST : 'broadcast',
 
 };
 
@@ -2797,7 +2800,7 @@ ANT.prototype.parse_response = function (data) {
     // Check for valid SYNC byte at start
 
     if (firstSYNC !== ANT.prototype.SYNC) {
-        console.error(Date.now() + " Invalid SYNC byte ", firstSYNC, "expected ", ANT.prototype.SYNC, "discarding data",data,"bytes:",data.length);
+        console.error(Date.now() + " Invalid SYNC byte ", firstSYNC, "expected ", ANT.prototype.SYNC, "cannot trust the integrety of data, thus discarding it",data,"bytes:",data.length);
         return;
     }
 
@@ -2861,14 +2864,14 @@ ANT.prototype.parse_response = function (data) {
         case ANT.prototype.ANT_MESSAGE.startup.id:
 
             if (!antInstance.emit(antInstance.EVENT.STARTUP, data))
-                console.warn("No listener for event " + antInstance.EVENT.STARTUP);
+                console.warn("No listener for event ANT.prototype.EVENT.STARTUP");
             
             break;
 
         case ANT.prototype.ANT_MESSAGE.serial_error.id:
 
             if (!antInstance.emit(antInstance.EVENT.SERIAL_ERROR, data))
-                console.warn("No listener for event " + antInstance.EVENT.SERIAL_ERROR);
+                console.warn("No listener for event ANT.prototype.EVENT.SERIAL_ERROR");
            
             break;
 
@@ -2924,31 +2927,32 @@ ANT.prototype.parse_response = function (data) {
 
         case ANT.prototype.ANT_MESSAGE.channel_status.id:
             if (!antInstance.emit(ANT.prototype.EVENT.CHANNEL_STATUS, data))
-                console.warn("No listener for event " + antInstance.EVENT.CHANNEL_STATUS);
+                console.warn("No listener for event ANT.prototype.EVENT.CHANNEL_STATUS");
 
             break;
 
         case ANT.prototype.ANT_MESSAGE.set_channel_id.id:
             if (!antInstance.emit(ANT.prototype.EVENT.SET_CHANNEL_ID, data))
-                console.warn("No listener for event " + antInstance.EVENT.SET_CHANNEL_ID);
+                console.warn("No listener for event ANT.prototype.EVENT.SET_CHANNEL_ID");
             break;
 
             // ANT device specific, i.e nRF24AP2
 
         case ANT.prototype.ANT_MESSAGE.ANT_version.id:
             if (!antInstance.emit(ANT.prototype.EVENT.ANT_VERSION, data))
-                console.warn("No listener for event " + antInstance.EVENT.ANT_VERSION);
+                console.warn("No listener for event ANT.prototype.EVENT.ANT_VERSION");
             break;
 
         case ANT.prototype.ANT_MESSAGE.capabilities.id:
 
-            msgStr += ANT.prototype.ANT_MESSAGE.capabilities.friendly + " " + antInstance.parseCapabilities(data).toString();
+            if (!antInstance.emit(ANT.prototype.EVENT.CAPABILITIES, data))
+                console.warn("No listener for event ANT.prototype.EVENT.CAPABILITIES");
 
             break;
 
         case ANT.prototype.ANT_MESSAGE.device_serial_number.id:
-
-            antInstance.emit(ANT.prototype.EVENT.DEVICE_SERIAL_NUMBER, data)
+            if (!antInstance.emit(ANT.prototype.EVENT.DEVICE_SERIAL_NUMBER, data))
+                console.warn("No listener for event ANT.prototype.EVENT.DEVICE_SERIAL_NUMBER");
             
             break;
 
@@ -2973,14 +2977,14 @@ ANT.prototype.parse_response = function (data) {
                    });
 
             }
-            // Call to broadcast handler for channel
 
-            antInstance.channelConfiguration[channelNr].broadCastDataParser(data);
+            // Call to broadcast handler for channel
+            if (!antInstance.emit(ANT.prototype.EVENT.BROADCAST,data))
+                console.warn("No listener for event ANT.prototype.EVENT.BROADCAST");
+
+            //antInstance.channelConfiguration[channelNr].broadCastDataParser(data);
             
             break;
-
-    
-
 
         default:
             msgStr += "* NO parser specified *";
@@ -3166,14 +3170,11 @@ ANT.prototype.parseCapabilities = function (data) {
         }
     };
 
-    var msg = "Max channels: " + maxANTChannels + " Max networks: " + maxNetworks + " ";
+    var msg = "Capabilities: channels " + maxANTChannels + " networks " + maxNetworks + " : ";
 
     for (var prop in self.capabilities.options)
         if (self.capabilities.options[prop])
             msg += prop.substring(13, prop.length - 8) + " ";
-
-    //if (log)
-    //    console.log(msg);
 
     self.capabilities.toString = function () { return msg; };
 
@@ -3184,6 +3185,8 @@ ANT.prototype.parseCapabilities = function (data) {
         self.retryQueue[channelNr] = [];
         self.burstQueue[channelNr] = [];
     }
+
+    self.emit(ANT.prototype.EVENT.LOG_MESSAGE, self.capabilities.toString());
 
     return self.capabilities;
 
