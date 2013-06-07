@@ -1,6 +1,7 @@
 var events = require('events'),
     usb = require('../usb.js'), // './' relative to the file calling require 
-    util = require('util');
+    util = require('util'),
+    Channel = require('../channel.js');
 
 // Low level API/interface to ANT USB stick
 function ANT(idVendor, idProduct, nodeInstance) {
