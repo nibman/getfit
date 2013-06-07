@@ -1496,23 +1496,6 @@ ANT.prototype.setChannelSearchTimeout = function (channelConfNr, errorCallback, 
      
 };
 
-ANT.prototype.sendAndVerifyResponseNoError = function (message,msgId,errorCB,successCB)
-{
-    var self = this;
-    this.sendOnly(message, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCB,
-    function success() {
-        self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCB,
-             function success(data) {
-                 if (!self.isResponseNoError(data, msgId))
-                     console.warn("Expected response NO ERROR", data); // No retry
-                 self.parse_response(data);
-                 successCB();
-             });
-    }
-    );
-
-}
-
 ANT.prototype.setChannelRFFrequency = function (channelConfNr, errorCallback, successCallback) {
     // ucRFFreq*1Mhz+2400 Mhz
     var RFFreq_msg, self = this;
@@ -1640,6 +1623,22 @@ ANT.prototype.isResponseNoError = function (data, requestedMsgId) {
     return (msgId === ANT.prototype.ANT_MESSAGE.channel_response.id && msgCode === ANT.prototype.RESPONSE_EVENT_CODES.RESPONSE_NO_ERROR && msgRequested === requestedMsgId);
 
 };
+
+ANT.prototype.sendAndVerifyResponseNoError = function (message, msgId, errorCB, successCB) {
+    var self = this;
+    this.sendOnly(message, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCB,
+    function success() {
+        self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCB,
+             function success(data) {
+                 if (!self.isResponseNoError(data, msgId))
+                     console.warn("Expected response NO ERROR", data); // No retry
+                 self.parse_response(data);
+                 successCB();
+             });
+    }
+    );
+
+}
 
 // p. 96 ANT Message protocol and usave rev. 5.0
 // TRANSFER_TX_COMPLETED channel event if successfull, or TX_TRANSFER_FAILED -> msg. failed to reach master or response from master failed to reach the slave -> slave may retry

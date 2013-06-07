@@ -168,7 +168,7 @@ DeviceProfile_ANTFS.prototype = {
 
     REQUEST_BURST_RESPONSE_DELAY: 3000, // Time in ms. to wait for burst response on a request before retrying previous request
 
-    ROOT_DIR: process.env.HOME + '\\ANTFSNODE',
+    ROOT_DIR: process.env.HOME + '\\getFIT-archive',
 
     NODECOMMAND: {
         DOWNLOAD_MULTIPLE: 0x03,
@@ -176,7 +176,6 @@ DeviceProfile_ANTFS.prototype = {
         DOWNLOAD_NEW: 0x00,
         ERASE_MULTIPLE: 0x01,
     },
-
 
     setHomeDirectory: function (homeDir) {
         var self = this; // Keep our this reference in callbacks please!
