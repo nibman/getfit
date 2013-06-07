@@ -74,12 +74,15 @@ ANT.prototype.EVENT = {
     DEVICE_SERIAL_NUMBER: 'deviceSerialNumber',
     ANT_VERSION: 'ANTVersion',
     CAPABILITIES: 'deviceCapabilities',
+
+    // Data
     BROADCAST: 'broadcast',
     BURST: 'burst'
 
 };
 
 ANT.prototype.NOTIFICATION = {
+
     STARTUP: {
         POWER_ON_RESET: 0x00,
         HARDWARE_RESET_LINE: 0x01,

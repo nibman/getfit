@@ -1416,7 +1416,7 @@ DeviceProfile_ANTFS.prototype = {
 
                                     break;
 
-                                case DeviceProfile_ANTFS.NODECOMMAND.ERASE_MULTIPLE:
+                                case DeviceProfile_ANTFS.prototype.NODECOMMAND.ERASE_MULTIPLE:
 
                                     var genericIndex;
 
