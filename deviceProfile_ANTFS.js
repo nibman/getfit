@@ -4,7 +4,7 @@ var ANT = require('./ant-lib');
 var fs = require('fs');
 var Channel = require('./channel.js');
 var Network = require('./network.js');
-var Node = require('./antusbnode.js');
+
 
 function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
@@ -121,7 +121,7 @@ DeviceProfile_ANTFS.prototype = {
         REQUEST_PASSKEY_EXCHANGE: 0x03
     },
 
-    FRIENDLY_NAME: "ANT USB NODE.JS",
+    FRIENDLY_NAME: "GETFIT.JS",
 
     INITIAL_DOWNLOAD_REQUEST: {
         CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER: 0x00,

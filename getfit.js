@@ -11,9 +11,9 @@ var
     DeviceProfile_SPDCAD = require('./deviceProfile_SPDCAD.js'),
     Network = require('./network.js');
 
-function Node() {
+function GetFIT() {
 
-    console.log("ANTFSNODE version ", Node.prototype.VERSION);
+    console.log("GetFIT version ", GetFIT.prototype.VERSION);
 
     var self = this;
     self.commandQueue = [];
@@ -61,8 +61,8 @@ function Node() {
         return indexArr;
     }
 
-    Node.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
-    console.log("Startup directory :", Node.prototype.STARTUP_DIRECTORY);
+    GetFIT.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
+    console.log("Startup directory :", GetFIT.prototype.STARTUP_DIRECTORY);
 
     console.log("argv", process.argv);
 
@@ -121,7 +121,7 @@ function Node() {
     self.ANT.init(error, success);
 }
 
-Node.prototype = {
+GetFIT.prototype = {
 
     VERSION: "0.1",
 
@@ -190,7 +190,7 @@ Node.prototype = {
         // Channel configurations indexed by channel nr.
 
         self.ANT.channelConfiguration[0] = self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT, 0, 0, 0, ANT.prototype.INFINITE_SEARCH);
-        self.ANT.channelConfiguration[1] = self.deviceProfile_ANTFS.getSlaveChannelConfiguration(Network.prototype.ANT_FS, 1, 0, 0, 0, Node.prototype.STARTUP_DIRECTORY);
+        self.ANT.channelConfiguration[1] = self.deviceProfile_ANTFS.getSlaveChannelConfiguration(Network.prototype.ANT_FS, 1, 0, 0, 0, GetFIT.prototype.STARTUP_DIRECTORY);
         self.ANT.channelConfiguration[2] = self.deviceProfile_SDM.getSlaveChannelConfiguration(Network.prototype.ANT, 2, 0, 0, ANT.prototype.INFINITE_SEARCH);
         self.ANT.channelConfiguration[3] = self.deviceProfile_SPDCAD.getSlaveChannelConfiguration(Network.prototype.ANT, 3, 0, 0, ANT.prototype.INFINITE_SEARCH);
 
@@ -226,10 +226,10 @@ Node.prototype = {
         var WebSocketServer = require('ws').Server;
 
         // Client tracking keeps track of websocket server clients in "clients" property -> removed on 'close'
-        self.wss = new WebSocketServer({ host: Node.prototype.WEBSOCKET_HOST, port: Node.prototype.WEBSOCKET_PORT, clientTracking: true });
+        self.wss = new WebSocketServer({ host: GetFIT.prototype.WEBSOCKET_HOST, port: GetFIT.prototype.WEBSOCKET_PORT, clientTracking: true });
 
         self.wss.on('listening', function () {
-            console.log("WebsocketServer: listening on " + Node.prototype.WEBSOCKET_HOST + ":" + Node.prototype.WEBSOCKET_PORT);
+            console.log("WebsocketServer: listening on " + GetFIT.prototype.WEBSOCKET_HOST + ":" + GetFIT.prototype.WEBSOCKET_PORT);
         });
 
         self.wss.on('connection', function (ws) {
@@ -252,5 +252,5 @@ Node.prototype = {
 
 };
 
-var ANTNode = new Node();
+var ANTNode = new GetFIT();
 
