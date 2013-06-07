@@ -257,6 +257,4 @@ Node.prototype = {
 
 };
 
-
-
-var ANTNode = new Node(); // Let's start ANT node
+var ANTNode = new Node();

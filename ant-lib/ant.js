@@ -465,7 +465,7 @@ ANT.prototype.parseChannelResponse = function (data) {
     if (msgId === 1) // Set to 1 for RF event
         msg = "EVENT on channel " + channel + " " + ANT.prototype.RESPONSE_EVENT_CODES[msgCode].friendly;
     else
-        msg = "RESPONSE on channel " + channel + " to msg. id " + msgId + "  " + ANT.prototype.ANT_MESSAGE[msgId] + " " + ANT.prototype.RESPONSE_EVENT_CODES[msgCode].friendly;
+        msg = "RESPONSE on channel " + channel + " to msg. id 0x" + msgId.toString(16) + "  " + ANT.prototype.ANT_MESSAGE[msgId] + " " + ANT.prototype.RESPONSE_EVENT_CODES[msgCode].friendly;
 
     this.emit(ANT.prototype.EVENT.LOG_MESSAGE, msg);
 
