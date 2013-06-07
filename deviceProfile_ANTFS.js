@@ -1409,7 +1409,7 @@ DeviceProfile_ANTFS.prototype = {
                                                     });
 
                                                 } else {
-                                                    console.log(Date.now() + " No files available for download");
+                                                    //console.log(Date.now() + " No files downloaded");
                                                     delete self.deviceProfile.processingCommand; // Allow processing of next command
                                                 }
                                             });

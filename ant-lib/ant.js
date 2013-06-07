@@ -1,5 +1,5 @@
 var events = require('events'),
-    usb = require('../usb.js'), // './' relative to the file calling require 
+    usb = require('../usb.js'), // '../' relative to the file calling require 
     util = require('util'),
     Channel = require('../channel.js');
 
@@ -904,6 +904,7 @@ ANT.prototype.parseCapabilities = function (data) {
 
 };
 
+// Get device capabilities
 ANT.prototype.getCapabilities = function (completeCB) {
     var msgId;
     var self = this;
@@ -927,6 +928,7 @@ ANT.prototype.getCapabilities = function (completeCB) {
         });
 };
 
+// Get ANT device version
 ANT.prototype.getANTVersion = function (callback) {
     var msgId;
     var self = this;
@@ -951,6 +953,7 @@ ANT.prototype.getANTVersion = function (callback) {
         });
 };
 
+// Get device serial number if available
 ANT.prototype.parseDeviceSerialNumber = function (data) {
     // SN 4 bytes Little Endian
     var sn = data.readUInt32LE(3),
@@ -1121,6 +1124,7 @@ ANT.prototype.releaseInterfaceCloseDevice = function () {
     });
 },
 
+// Iterates from channelNrSeed and optionally closes channel
  ANT.prototype.iterateChannelStatus = function (channelNrSeed, closeChannel, iterationFinishedCB) {
      var self = this;
 
@@ -1150,7 +1154,7 @@ ANT.prototype.releaseInterfaceCloseDevice = function () {
                      console.log(Date.now() + " Could not close channel", err);
                  },
                      function success() {
-                         console.log(Date.now() + " Channel " + channelNrSeed + " closed.");
+                         console.log(Date.now() + " Channel " + channelNrSeed + " CLOSED.");
                          reIterate();
                      });
              else
@@ -1184,7 +1188,7 @@ ANT.prototype.read = function (timeout, errorCallback, successCallback) {
     var channelNr;
     // var inTransfer;
 
-    self.device.timeout = timeout; // Don't timeout/give up receiving data
+    self.device.timeout = timeout; 
 
     //function retry() {try
 
@@ -1420,19 +1424,8 @@ ANT.prototype.setNetworkKey = function (channelConfNr, errorCallback, successCal
 
     // console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key);
 
-    self.sendOnly(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]), new Buffer(channel.network.key)])),
-    ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-     function success() {
-         self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-              function success(data) {
-                  if (!self.isResponseNoError(data, self.ANT_MESSAGE.set_network_key.id))
-                      console.warn("Expected response NO ERROR", data);
-
-                  self.parse_response(data);
-                  successCallback();
-              });
-     }
-    );
+    this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]), new Buffer(channel.network.key)])), self.ANT_MESSAGE.set_network_key.id, errorCallback, successCallback);
+    
 };
 
 ANT.prototype.assignChannel = function (channelConfNr, errorCallback, successCallback) {
@@ -1444,20 +1437,7 @@ ANT.prototype.assignChannel = function (channelConfNr, errorCallback, successCal
 
     // Assign channel command should be issued before any other channel configuration messages (p. 64 ANT Message Protocol And Usaga Rev 50) ->
     // also sets defaults values for RF, period, tx power, search timeout p.22
-    this.sendOnly(this.create_message(this.ANT_MESSAGE.assign_channel, new Buffer([channel.number, channel.channelType, channel.network.number])),
-        ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-        function success() {
-            self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                 function success(data) {
-                     if (!self.isResponseNoError(data, self.ANT_MESSAGE.assign_channel.id))
-                         console.warn("Expected response NO ERROR", data);
-
-                     self.parse_response(data);
-                     successCallback();
-                 });
-        }
-        );
-
+    this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.assign_channel, new Buffer([channel.number, channel.channelType, channel.network.number])), self.ANT_MESSAGE.assign_channel.id, errorCallback, successCallback);
 };
 
 ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCallback) {
@@ -1480,21 +1460,12 @@ ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCall
     buf[4] = channel.transmissionType; // Can be set to zero (wildcard) on a slave device, spec. p. 18 ANT Message Protocol and Usage, rev 5.0
 
     set_channel_id_msg = this.create_message(this.ANT_MESSAGE.set_channel_id, buf);
-    self.sendOnly(set_channel_id_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-        function success() {
-            self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                 function success(data) {
-                     if (!self.isResponseNoError(data, self.ANT_MESSAGE.set_channel_id.id))
-                         console.warn("Expected response NO ERROR", data);
-                     self.parse_response(data);
-                     successCallback();
-                 });
-        }
-        );
+
+    this.sendAndVerifyResponseNoError(set_channel_id_msg, self.ANT_MESSAGE.set_channel_id.id, errorCallback, successCallback);
 
 },
 
- ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, successCallback) {
+ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, successCallback) {
 
      var set_channel_period_msg, rate, self = this;
      var channel = this.channelConfiguration[channelConfNr];
@@ -1507,20 +1478,11 @@ ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCall
 
      set_channel_period_msg = this.create_message(this.ANT_MESSAGE.set_channel_messaging_period, new Buffer(buf));
 
-     this.sendOnly(set_channel_period_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-         function success() {
-             self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                  function success(data) {
-                      if (!self.isResponseNoError(data, self.ANT_MESSAGE.set_channel_messaging_period.id))
-                          console.warn("Expected response NO ERROR", data);
-                      self.parse_response(data);
-                      successCallback();
-                  });
-         }
-         );
+     this.sendAndVerifyResponseNoError(set_channel_period_msg, self.ANT_MESSAGE.set_channel_messaging_period.id, errorCallback, successCallback);
+
  },
 
- ANT.prototype.setChannelSearchTimeout = function (channelConfNr, errorCallback, successCallback) {
+ANT.prototype.setChannelSearchTimeout = function (channelConfNr, errorCallback, successCallback) {
 
      // Each count in ucSearchTimeout = 2.5 s, 255 = infinite, 0 = disable high priority search mode
      var channel_search_timeout_msg, self = this;
@@ -1530,18 +1492,26 @@ ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCall
 
      channel_search_timeout_msg = this.create_message(this.ANT_MESSAGE.set_channel_search_timeout, new Buffer([channel.number, channel.searchTimeout]));
 
-     this.sendOnly(channel_search_timeout_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-         function success() {
-             self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                  function success(data) {
-                      if (!self.isResponseNoError(data, self.ANT_MESSAGE.set_channel_search_timeout.id))
-                          console.warn("Expected response NO ERROR", data);
-                      self.parse_response(data);
-                      successCallback();
-                  });
-         }
-         );
- };
+     this.sendAndVerifyResponseNoError(channel_search_timeout_msg, self.ANT_MESSAGE.set_channel_search_timeout.id,errorCallback,successCallback);
+     
+};
+
+ANT.prototype.sendAndVerifyResponseNoError = function (message,msgId,errorCB,successCB)
+{
+    var self = this;
+    this.sendOnly(message, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCB,
+    function success() {
+        self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCB,
+             function success(data) {
+                 if (!self.isResponseNoError(data, msgId))
+                     console.warn("Expected response NO ERROR", data); // No retry
+                 self.parse_response(data);
+                 successCB();
+             });
+    }
+    );
+
+}
 
 ANT.prototype.setChannelRFFrequency = function (channelConfNr, errorCallback, successCallback) {
     // ucRFFreq*1Mhz+2400 Mhz
@@ -1550,17 +1520,8 @@ ANT.prototype.setChannelRFFrequency = function (channelConfNr, errorCallback, su
 
     // console.log("Set channel RF frequency channel " + channel.number + " frequency " + channel.RFfrequency);
     RFFreq_msg = this.create_message(this.ANT_MESSAGE.set_channel_RFFreq, new Buffer([channel.number, channel.RFfrequency]));
-    this.sendOnly(RFFreq_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-        function success() {
-            self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                 function success(data) {
-                     if (!self.isResponseNoError(data, self.ANT_MESSAGE.set_channel_RFFreq.id))
-                         console.warn("Expected response NO ERROR", data);
-                     self.parse_response(data);
-                     successCallback();
-                 });
-        }
-        );
+    this.sendAndVerifyResponseNoError(RFFreq_msg, self.ANT_MESSAGE.set_channel_RFFreq.id, errorCallback, successCallback);
+    
 };
 
 ANT.prototype.setSearchWaveform = function (channelConfNr, errorCallback, successCallback) {
@@ -1582,17 +1543,8 @@ ANT.prototype.setSearchWaveform = function (channelConfNr, errorCallback, succes
     buf[2] = channel.searchWaveform[1];
     set_search_waveform_msg = this.create_message(this.ANT_MESSAGE.set_search_waveform, new Buffer(buf));
 
-    this.sendOnly(set_search_waveform_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-        function success() {
-            self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                 function success(data) {
-                     if (!self.isResponseNoError(data, self.ANT_MESSAGE.set_search_waveform.id))
-                         console.warn("Expected response NO ERROR", data);
-                     self.parse_response(data);
-                     successCallback();
-                 });
-        }
-        );
+    this.sendAndVerifyResponseNoError(set_search_waveform_msg, self.ANT_MESSAGE.set_search_waveform.id, errorCallback, successCallback);
+    
 };
 
 ANT.prototype.open = function (channelConfNr, errorCallback, successCallback) {
@@ -1601,23 +1553,11 @@ ANT.prototype.open = function (channelConfNr, errorCallback, successCallback) {
     var channel = this.channelConfiguration[channelConfNr];
     console.log(Date.now()+ " Opening channel " + channel.number);
     open_channel_msg = this.create_message(this.ANT_MESSAGE.open_channel, new Buffer([channel.number]));
-    self.sendOnly(open_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-        function success() {
-            self.read(ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
-                         function success(data) {
-                             if (!self.isResponseNoError(data, self.ANT_MESSAGE.open_channel.id)) {
-                                 console.warn(Date.now() + " Expected response NO ERROR for open channel, but got ", data);
-                                 errorCallback();
-                             }
-                             else {
-                                 //self.parse_response(data);
-                                 successCallback();
-                             }
-                         });
-        });
 
+    this.sendAndVerifyResponseNoError(open_channel_msg, self.ANT_MESSAGE.open_channel.id, errorCallback, successCallback);
 };
 
+// Closing first gives a response no error, then an event channel closed
 ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
     //console.log("Closing channel "+ucChannel);
     var close_channel_msg, self = this;
@@ -1682,12 +1622,15 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
 
 //Rx:  <Buffer a4 03 40 01 01 05 e2> Channel Response/Event EVENT on channel 1 EVENT_TRANSFER_TX_COMPLETED
 //Rx:  <Buffer a4 03 40 01 01 06 e1> Channel Response/Event EVENT on channel 1 EVENT_TRANSFER_TX_FAILED
+
+// Check for specific event code
 ANT.prototype.isEvent = function (code, data) {
     var msgId = data[2], channelNr = data[3], eventOrResponse = data[4], eventCode = data[5], EVENT = 1;
 
     return (msgId === ANT.prototype.ANT_MESSAGE.channel_response.id && eventOrResponse === EVENT && code === eventCode);
 };
 
+// Check if channel response is a no error for a specific requested message id
 ANT.prototype.isResponseNoError = function (data, requestedMsgId) {
     var msgId = data[2], msgRequested = data[4], msgCode = data[5];
 
@@ -1954,20 +1897,20 @@ ANT.prototype.sendOnly = function (message, maxRetries, timeout, errorCallback, 
                 if (retryNr > 0)
                     retry(retryNr);
                 else {
-                    if (typeof errorCallback !== "undefined")
+                    if (typeof errorCallback === "function")
                         errorCallback(error);
                     else {
-                        console.error("Error callback is undefined");
+                        console.error("Error callback is not a function. Reached maximum retries during send.");
                         console.trace();
                     }
                 }
             }
             else {
-                if (typeof successCallback !== "undefined")
+                if (typeof successCallback === "function")
                     successCallback();
                 else {
-                    console.error("Success callback is undefined");
-                    //console.trace();
+                    console.error("Success callback is not a function");
+                    console.trace();
                 }
 
             }
