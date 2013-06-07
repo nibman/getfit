@@ -732,10 +732,10 @@ ANT.prototype.listen = function (transferCancelledCallback) {
 
         self.read(NO_TIMEOUT, function error(err) {
 
-            if (err.errno !== usb.LIBUSB_TRANSFER_CANCELLED) { // May be aborted by pressing Ctrl-C in Node.js
+            if (err.errno !== usb.LIBUSB_TRANSFER_CANCELLED) { 
                 console.log(Date.now() + " Listen:", err);
                 process.nextTick(retry);
-            } else { // Transfer cancelled
+            } else { // Transfer cancelled, may be aborted by pressing Ctrl-C in Node.js 
                 //console.log(error);
                 if (typeof transferCancelledCallback === "function")
                     transferCancelledCallback();
@@ -1129,9 +1129,9 @@ ANT.prototype.releaseInterfaceCloseDevice = function () {
      },
          function success() {
 
-             if (self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.SEARCHING ||
-                 self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.TRACKING)
-                 console.log(self.channelConfiguration[channelNrSeed].channelStatus.toString());
+             //if (self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.SEARCHING ||
+             //    self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.TRACKING)
+             //    console.log(self.channelConfiguration[channelNrSeed].channelStatus.toString());
 
              function reIterate() {
                  ++channelNrSeed;
@@ -1310,7 +1310,7 @@ ANT.prototype.init = function (errorCallback, callback) {
         self.tryCleaningBuffers(
             function () {
                 self.resetSystem(errorCallback, function _getCapabilities() {
-                    // Allow 500 ms after reset before continuing
+                    // Allow 500 ms after reset before continuing to allow for "post-reset-state"
                     setTimeout(function infoRequest() {
 
                         self.getCapabilities(function _getANTVersion() {
@@ -1363,6 +1363,7 @@ ANT.prototype.init = function (errorCallback, callback) {
     }
 };
 
+// Configures a channel
 ANT.prototype.configure = function (channelConfNr, errorCallback, successCallback) {
     var self = this;
     var channel = self.channelConfiguration[channelConfNr];
@@ -1412,9 +1413,6 @@ ANT.prototype.configure = function (channelConfNr, errorCallback, successCallbac
              });
 
 };
-
-
-
 
 ANT.prototype.setNetworkKey = function (channelConfNr, errorCallback, successCallback) {
     var self = this;
@@ -1601,7 +1599,7 @@ ANT.prototype.open = function (channelConfNr, errorCallback, successCallback) {
     //console.log("Opening channel "+ucChannel);
     var open_channel_msg, self = this;
     var channel = this.channelConfiguration[channelConfNr];
-    console.log("Opening channel " + channel.number);
+    console.log(Date.now()+ " Opening channel " + channel.number);
     open_channel_msg = this.create_message(this.ANT_MESSAGE.open_channel, new Buffer([channel.number]));
     self.sendOnly(open_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, ANT.prototype.ANT_DEVICE_TIMEOUT, errorCallback,
         function success() {

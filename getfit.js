@@ -154,6 +154,12 @@ GetFIT.prototype = {
     stop: function () {
         var self = this;
         clearInterval(self.heartBeatIntervalID);
+        if (typeof self.wss !== "undefined") {
+            console.log("Closing websocket server, terminating connections to clients");
+            self.wss.close();
+        }
+
+        self.ANT.exit();
     },
 
     beat: function ()  // When we have nothing more important to do ...
@@ -169,7 +175,6 @@ GetFIT.prototype = {
         self.heartBeat = 0;
         self.heartBeatIntervalID = setInterval(self.beat, 60000 * 60 * 24); // 1 "beat" each day 
 
-
         // Handle gracefull termination
         // http://thomashunter.name/blog/gracefully-kill-node-js-app-from-ctrl-c/
 
@@ -180,11 +185,6 @@ GetFIT.prototype = {
 
             self.stop();
 
-            if (typeof self.wss !== "undefined") {
-                console.log("Closing websocket server, terminating connections to clients");
-                self.wss.close();
-            }
-            self.ANT.exit();
         });
 
         // Channel configurations indexed by channel nr.
@@ -212,7 +212,13 @@ GetFIT.prototype = {
                         //console.log(self.ANT.channelConfiguration);
                         self.ANT.open(1, function () { console.log("Could not open channel for ANT-FS"); }, function () {
                             console.log(Date.now() + " ANT-FS channel OPEN");
-                            self.ANT.listen.call(self.ANT, function transferCancelCB() { self.ANT.iterateChannelStatus(0, true, function clean() { self.ANT.tryCleaningBuffers(function release() { self.ANT.releaseInterfaceCloseDevice(); }); }); });
+                            self.ANT.listen.call(self.ANT, function transferCancelCB() {
+                                self.ANT.iterateChannelStatus(0, true, function clean() {
+                                    self.ANT.tryCleaningBuffers(function release() {
+                                        self.ANT.releaseInterfaceCloseDevice();
+                                    });
+                                });
+                            });
                         });
                         //  });
                         //})
