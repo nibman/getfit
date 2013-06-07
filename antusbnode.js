@@ -68,18 +68,18 @@ function Node() {
 
     if (process.argv[2] === "-d" || process.argv[2] === "--download") {
         if (typeof process.argv[3] === "undefined")
-            self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
+            self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW);
         else if (process.argv[3] === "*")
-            self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_ALL);
+            self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_ALL);
         else {
-            self.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_MULTIPLE); // i.e '1,2,3'
+            self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_MULTIPLE); // i.e '1,2,3'
             //argNr = 3;
             self.commandIndex.push(parseIndex(process.argv[3]));
         }
 
 
     } else if (process.argv[2] === "-e" || process.argv[2] === "--erase") {
-        self.commandQueue.push(Node.prototype.COMMAND.ERASE_MULTIPLE);
+        self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.ERASE_MULTIPLE);
         if (typeof process.argv[3] === "undefined") {
             console.log("Missing file index/range");
             showUsage();
@@ -128,12 +128,7 @@ Node.prototype = {
     WEBSOCKET_HOST: 'localhost',
     WEBSOCKET_PORT: 8093,
 
-    COMMAND: {
-        DOWNLOAD_MULTIPLE : 0x03,
-        DOWNLOAD_ALL: 0x02,
-        DOWNLOAD_NEW: 0x00,
-        ERASE_MULTIPLE: 0x01,
-    },
+   
 
     broadCast:  // Broadcast data to all clients
      function (data) {
@@ -258,3 +253,4 @@ Node.prototype = {
 };
 
 var ANTNode = new Node();
+

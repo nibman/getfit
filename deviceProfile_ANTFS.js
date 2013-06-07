@@ -4,6 +4,7 @@ var ANT = require('./ant-lib');
 var fs = require('fs');
 var Channel = require('./channel.js');
 var Network = require('./network.js');
+var Node = require('./antusbnode.js');
 
 function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
@@ -168,6 +169,13 @@ DeviceProfile_ANTFS.prototype = {
     REQUEST_BURST_RESPONSE_DELAY: 3000, // Time in ms. to wait for burst response on a request before retrying previous request
 
     ROOT_DIR: process.env.HOME + '\\ANTFSNODE',
+
+    NODECOMMAND: {
+        DOWNLOAD_MULTIPLE: 0x03,
+        DOWNLOAD_ALL: 0x02,
+        DOWNLOAD_NEW: 0x00,
+        ERASE_MULTIPLE: 0x01,
+    },
 
 
     setHomeDirectory: function (homeDir) {
@@ -1245,7 +1253,7 @@ DeviceProfile_ANTFS.prototype = {
                     {
                         if (self.nodeInstance.commandQueue.length === 0 && beacon.dataAvailable) {
                             console.log(Date.now() + " LINK beacon reports data available, scheduling download of new files");
-                            self.nodeInstance.commandQueue.push(Node.prototype.COMMAND.DOWNLOAD_NEW);
+                            self.nodeInstance.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW);
                         }
 
                         switch (beacon.authenticationType) {
@@ -1370,9 +1378,9 @@ DeviceProfile_ANTFS.prototype = {
                         else
                             switch (currentCommand) {
 
-                                case Node.prototype.COMMAND.DOWNLOAD_NEW:
-                                case Node.prototype.COMMAND.DOWNLOAD_ALL:
-                                case Node.prototype.COMMAND.DOWNLOAD_MULTIPLE:
+                                case DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW:
+                                case DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_ALL:
+                                case DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_MULTIPLE:
 
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self,
                                             DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE, 0,
@@ -1384,11 +1392,11 @@ DeviceProfile_ANTFS.prototype = {
                                                 self.nodeInstance.deviceProfile_ANTFS.parseDirectory.call(self, self.deviceProfile.response.downloadFile);
 
 
-                                                if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_NEW)
+                                                if (currentCommand === DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW)
                                                     genericIndex = self.deviceProfile.directory.newIndex;
-                                                else if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_ALL)
+                                                else if (currentCommand === DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_ALL)
                                                     genericIndex = self.deviceProfile.directory.downloadIndex;
-                                                else if (currentCommand === Node.prototype.COMMAND.DOWNLOAD_MULTIPLE) {
+                                                else if (currentCommand === DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_MULTIPLE) {
 
                                                     genericIndex = self.nodeInstance.commandIndex[0];
                                                     console.log("genericIndex", genericIndex);
@@ -1408,7 +1416,7 @@ DeviceProfile_ANTFS.prototype = {
 
                                     break;
 
-                                case Node.prototype.COMMAND.ERASE_MULTIPLE:
+                                case DeviceProfile_ANTFS.NODECOMMAND.ERASE_MULTIPLE:
 
                                     var genericIndex;
 

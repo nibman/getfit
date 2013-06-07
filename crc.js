@@ -10,7 +10,7 @@ module.exports.Calc16 = function (data) {
 module.exports.UpdateCRC16 = function (CRCSeed, data) {
     var byteNr, len = data.length;
     for (byteNr = 0; byteNr < len; byteNr++)
-        CRCSeed = module.exports.CRC_Get16(CRCSeed, data[byteNr]);
+        CRCSeed = module.exports.Get16(CRCSeed, data[byteNr]);
     return CRCSeed;
 };
 
