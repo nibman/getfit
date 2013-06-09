@@ -1,3 +1,5 @@
+"use strict";
+
 var events = require('events'),
     usb = require('../usb.js'), // '../' relative to the file calling require 
     util = require('util'),
@@ -8,13 +10,13 @@ function ANT(idVendor, idProduct, nodeInstance) {
     events.EventEmitter.call(this); // Call super constructor
 
     if (typeof idVendor === "undefined")
-        throw Error("Vendor id not specified");
+        throw new Error("Vendor id not specified");
 
     if (typeof idProduct === "undefined")
-        throw Error("Product id not specified");
+        throw new Error("Product id not specified");
 
     if (typeof nodeInstance === "undefined")
-        throw Error("Node instance not specified");
+        throw new Error("Node instance not specified");
 
     this.idVendor = idVendor;
     this.idProduct = idProduct;
@@ -452,7 +454,7 @@ ANT.prototype.parseNotificationSerialError = function (data) {
         timestamp: Date.now(),
         message: msg,
         code: code
-    }
+    };
 
     this.emit(ANT.prototype.EVENT.LOG_MESSAGE, ANT.prototype.ANT_MESSAGE.serial_error.friendly + " " + msg);
 
@@ -481,7 +483,7 @@ ANT.prototype.parseANTVersion = function (data) {
     this.emit(ANT.prototype.EVENT.LOG_MESSAGE, "ANT Version: " + this.ANTVersion);
 
     return this.ANTVersion;
-}
+};
 
 // Overview on p. 58 - ANT Message Protocol and Usage
 ANT.prototype.parse_response = function (data) {
@@ -518,7 +520,6 @@ ANT.prototype.parse_response = function (data) {
             channelNr = data[3] & 0x1F; // 5 lower bits
             sequenceNr = (data[3] & 0xE0) >> 5; // 3 upper bits
             msgLength = data[1];
-
 
             if (msgLength === 9) {
 
@@ -696,11 +697,8 @@ ANT.prototype.parse_response = function (data) {
 
             break;
 
-
-
         default:
             msgStr += "* NO parser specified *";
-
             break;
     }
 
@@ -1122,7 +1120,7 @@ ANT.prototype.releaseInterfaceCloseDevice = function () {
             process.exit();
         }
     });
-},
+};
 
 // Iterates from channelNrSeed and optionally closes channel
  ANT.prototype.iterateChannelStatus = function (channelNrSeed, closeChannel, iterationFinishedCB) {
@@ -1149,14 +1147,15 @@ ANT.prototype.releaseInterfaceCloseDevice = function () {
                  }
              }
 
-             if (closeChannel && (self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.SEARCHING || self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.TRACKING))
-                 self.close(channelNrSeed, function error(err) {
-                     console.log(Date.now() + " Could not close channel", err);
-                 },
-                     function success() {
-                         console.log(Date.now() + " Channel " + channelNrSeed + " CLOSED.");
-                         reIterate();
-                     });
+             if (closeChannel && (self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.SEARCHING ||
+                    self.channelConfiguration[channelNrSeed].channelStatus.channelState === ANT.prototype.CHANNEL_STATUS.TRACKING))
+                         self.close(channelNrSeed, function error(err) {
+                             console.log(Date.now() + " Could not close channel", err);
+                         },
+                             function success() {
+                                 console.log(Date.now() + " Channel " + channelNrSeed + " CLOSED.");
+                                 reIterate();
+                             });
              else
                  reIterate();
          });
@@ -1283,9 +1282,10 @@ ANT.prototype.init = function (errorCallback, callback) {
         if (typeof self.antInterface === "undefined") {
             console.log("Could not get interface to ant device, aborting");
             errorCallback();
-        } else {
-            //   console.log("Found default interface, it has " + self.antInterface.endpoints.length + " endpoints ");
         }
+        //else {
+            //   console.log("Found default interface, it has " + self.antInterface.endpoints.length + " endpoints ");
+        //}
 
         if (self.antInterface.endpoints.length < 2) {
             console.log("Normal operation require 2 endpoints for in/out communication with ANT device");
@@ -1463,37 +1463,38 @@ ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCall
 
     this.sendAndVerifyResponseNoError(set_channel_id_msg, self.ANT_MESSAGE.set_channel_id.id, errorCallback, successCallback);
 
-},
+};
 
 ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, successCallback) {
 
-     var set_channel_period_msg, rate, self = this;
-     var channel = this.channelConfiguration[channelConfNr];
+    var set_channel_period_msg, rate, self = this;
+    var channel = this.channelConfiguration[channelConfNr];
 
-     //console.log("Set channel period for channel " + channel.number + " to " + channel.periodFriendly + " value: " + channel.period);
+    //console.log("Set channel period for channel " + channel.number + " to " + channel.periodFriendly + " value: " + channel.period);
 
-     var buf = new Buffer(3);
-     buf[0] = channel.number;
-     buf.writeUInt16LE(channel.period, 1);
+    var buf = new Buffer(3);
+    buf[0] = channel.number;
+    buf.writeUInt16LE(channel.period, 1);
 
-     set_channel_period_msg = this.create_message(this.ANT_MESSAGE.set_channel_messaging_period, new Buffer(buf));
+    set_channel_period_msg = this.create_message(this.ANT_MESSAGE.set_channel_messaging_period, new Buffer(buf));
 
-     this.sendAndVerifyResponseNoError(set_channel_period_msg, self.ANT_MESSAGE.set_channel_messaging_period.id, errorCallback, successCallback);
+    this.sendAndVerifyResponseNoError(set_channel_period_msg, self.ANT_MESSAGE.set_channel_messaging_period.id, errorCallback, successCallback);
 
- },
+};
 
 ANT.prototype.setChannelSearchTimeout = function (channelConfNr, errorCallback, successCallback) {
 
-     // Each count in ucSearchTimeout = 2.5 s, 255 = infinite, 0 = disable high priority search mode
-     var channel_search_timeout_msg, self = this;
-     var channel = this.channelConfiguration[channelConfNr];
+    // Each count in ucSearchTimeout = 2.5 s, 255 = infinite, 0 = disable high priority search mode
+    var channel_search_timeout_msg, self = this;
+    var channel = this.channelConfiguration[channelConfNr];
 
-     //console.log("Set channel search timeout channel " + channel.number + " timeout " + channel.searchTimeout);
+    //console.log("Set channel search timeout channel " + channel.number + " timeout " + channel.searchTimeout);
+    var buf = new Buffer([channel.number, channel.searchTimeout]);
 
-     channel_search_timeout_msg = this.create_message(this.ANT_MESSAGE.set_channel_search_timeout, new Buffer([channel.number, channel.searchTimeout]));
+    channel_search_timeout_msg = this.create_message(this.ANT_MESSAGE.set_channel_search_timeout, buf);
 
-     this.sendAndVerifyResponseNoError(channel_search_timeout_msg, self.ANT_MESSAGE.set_channel_search_timeout.id,errorCallback,successCallback);
-     
+    this.sendAndVerifyResponseNoError(channel_search_timeout_msg, self.ANT_MESSAGE.set_channel_search_timeout.id, errorCallback, successCallback);
+
 };
 
 ANT.prototype.setChannelRFFrequency = function (channelConfNr, errorCallback, successCallback) {
@@ -1550,6 +1551,31 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
     this.sendOnly(close_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, 500, errorCallback,
         function success() {
             var retryNr = 0;
+
+            function retryEvent() {
+
+                self.read(500, errorCallback,
+                    function success(data) {
+                        retryNr = 0;
+
+                        if (!self.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_CHANNEL_CLOSED, data)) {
+                            console.warn("Expected event CHANNEL_CLOSED, but got ", data);
+                            retryNr++;
+                            if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
+                                console.log(Date.now() + " Discarding data. Retrying to get EVENT CHANNEL CLOSED from ANT device");
+                                retryEvent();
+                            }
+                            else {
+                                console.log(Date.now() + " Reached maximum number of retries. Aborting.");
+                                errorCallback();
+                            }
+                        }
+                        else
+                            successCallback();
+                    });
+            }
+
+
             function retry() {
                 self.read(500, errorCallback,
                              function success(data) {
@@ -1565,37 +1591,14 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                                          errorCallback();
                                      }
                                  }
-                                 else {
+                                 else 
                                      //self.parse_response(data);
 
                                      // Wait for EVENT_CHANNEL_CLOSED
                                      // If channel status is tracking -> can get broadcast data packet before channel close packet
 
-                                     function retryEvent() {
-
-                                         self.read(500, errorCallback,
-                                             function success(data) {
-                                                 var retryNr = 0;
-
-                                                 if (!self.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_CHANNEL_CLOSED, data)) {
-                                                     console.warn("Expected event CHANNEL_CLOSED, but got ", data);
-                                                     retryNr++;
-                                                     if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
-                                                         console.log(Date.now() + " Discarding data. Retrying to get EVENT CHANNEL CLOSED from ANT device");
-                                                         retryEvent();
-                                                     }
-                                                     else {
-                                                         console.log(Date.now() + " Reached maximum number of retries. Aborting.");
-                                                         errorCallback();
-                                                     }
-                                                 }
-                                                 else
-                                                     successCallback();
-                                             });
-                                     }
-
                                      retryEvent();
-                                 }
+                                 
                              });
             }
 
@@ -1638,7 +1641,7 @@ ANT.prototype.sendAndVerifyResponseNoError = function (message, msgId, errorCB, 
     }
     );
 
-}
+};
 
 // p. 96 ANT Message protocol and usave rev. 5.0
 // TRANSFER_TX_COMPLETED channel event if successfull, or TX_TRANSFER_FAILED -> msg. failed to reach master or response from master failed to reach the slave -> slave may retry
@@ -1756,6 +1759,14 @@ ANT.prototype.sendBurstTransfer = function (ucChannel, pucData, errorCallback, s
 
     this.burstQueue[ucChannel].push(burstMsg);
 
+    var error = function (err) {
+        console.log(Date.now() + " Failed to send burst transfer to ANT engine", err);
+    };
+
+    var success = function () {
+        //console.log(Date.now()+ " Sent burst packet to ANT engine for transmission");
+    };
+
     function sendBurst() {
 
         if (burstMsg.retry <= ANT.prototype.TX_DEFAULT_RETRY) {
@@ -1777,14 +1788,7 @@ ANT.prototype.sendBurstTransfer = function (ucChannel, pucData, errorCallback, s
                 else
                     packet = pucData.slice(packetNr * 8, packetNr * 8 + 8);
 
-                self.sendBurstTransferPacket(channelNrField, packet,
-                    function error(err) {
-                        console.log(Date.now() + " Failed to send burst transfer to ANT engine", err);
-                    },
-                    function success() {
-                        //console.log(Date.now()+ " Sent burst packet to ANT engine for transmission");
-                    }
-                    );
+                self.sendBurstTransferPacket(channelNrField, packet,error,success);
             }
         } else {
             console.log(Date.now() + " Reached maximum number of retries of entire burst of ", burstMsg.message.friendlyName, burstMsg.message.buffer);
