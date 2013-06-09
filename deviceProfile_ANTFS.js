@@ -1,3 +1,5 @@
+"use strict";
+
 var DeviceProfile = require('./deviceProfile.js');
 var CRC = require('./crc.js');
 var ANT = require('./ant-lib');
@@ -454,7 +456,7 @@ DeviceProfile_ANTFS.prototype = {
 
                                     if (self.deviceProfile.request.dataIndex !== DeviceProfile_ANTFS.prototype.RESERVED_FILE_INDEX.DIRECTORY_STRUCTURE) {
 
-                                        var fName = self.deviceProfile.getHomeDirectory() + '\\' + self.deviceProfile.directory.index[self.deviceProfile.request.dataIndex].getFileName();
+                                        var fName = self.deviceProfile.getHomeDirectory() + '\\' + self.deviceProfile.directory.index[self.deviceProfile.request.dataIndex].fileName;
                                         console.log(Date.now() + " Downloaded file ", fName, download_response.fileSize, "bytes");
                                         fs.writeFile(fName, self.deviceProfile.response.downloadFile, function (err) {
                                             if (err)
@@ -905,7 +907,7 @@ DeviceProfile_ANTFS.prototype = {
                 dateStr = "UnknownDate" + '-' + date + '-' + Date.now().toString();
             else if (date < 0x0FFFFFFF)
                 dateStr = "System-Custom " + date;
-            else if (this.date !== 0)
+            else 
                 if (useFormatting)
                     dateStr = formatDate(new Date(Date.UTC(1989, 11, 31, 0, 0, 0, 0) + date * 1000));
                 else
@@ -914,11 +916,12 @@ DeviceProfile_ANTFS.prototype = {
             return dateStr;
         }
 
-        function getFileName() {
-            if (this.dataType === 0x80)
-                return function () { return this.dataTypeFriendly + "-" + this.dataSubTypeFriendly + "-" + this.index + "-" + getDateAsString(this.date, true) + ".FIT" };
+
+        function getFileName(myFile) {
+            if (myFile.dataType === 0x80)
+                return function () { return myFile.dataTypeFriendly + "-" + myFile.dataSubTypeFriendly + "-" + myFile.index + "-" + getDateAsString(myFile.date, true) + ".FIT"; };
             else
-                return function () { return this.dataTypeFriendly + "-" + getDateAsString(this.date) + "-" + this.index + ".BIN"; };
+                return function () { return myFile.dataTypeFriendly + "-" + getDateAsString(myFile.date) + "-" + myFile.index + ".BIN"; };
         }
 
         function AsString() {
@@ -976,7 +979,7 @@ DeviceProfile_ANTFS.prototype = {
                 dataType += " " + this.dataTypeFriendly + " " + dataSubType;
             }
             // (Skip this.identifier in output->not useful)
-            return function () { return "Index " + this.index + " " + dataType + " " + dataTypeFlags + " " + generalFlags + " " + this.size + " " + date };
+            return function () { return "Index " + this.index + " " + dataType + " " + dataTypeFlags + " " + generalFlags + " " + this.size + " " + date; };
         }
 
         for (fileNr = 0; fileNr < numberOfFiles; fileNr++) {
@@ -1026,7 +1029,7 @@ DeviceProfile_ANTFS.prototype = {
             // console.log(file);
             self.deviceProfile.directory.index[file.index] = file;
 
-            file.getFileName = getFileName.call(file);
+            file.fileName = getFileName(file);
             // Drawback : each instance a function -> maybe move to a prototype
             file.toString = AsString.call(file);
 
@@ -1222,6 +1225,29 @@ DeviceProfile_ANTFS.prototype = {
         if (typeof self.deviceProfile.DONT_CONNECT !== "undefined")  // Prevent re-connection for 10 seconds after a disconnect command is sent to the device
             return;
 
+        function retryLink() {
+            if (++retryLINK < 10) {
+                self.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(self,
+                    function error() {
+                        console.log(Date.now() + " Failed to send ANT-FS link command to device");
+                        delete self.deviceProfile.sendingLINK;
+
+                    },
+                    function success() {
+                        console.log(Date.now() + " ANT-FS link command acknowledged by device.");
+                        // Device should transition to authentication beacon now if all went well
+                        setTimeout(function handler() {
+                            if (typeof self.deviceProfile.sendingLINK !== "undefined") {
+                                console.log(Date.now() + " Device did not transition to authentication state. Retrying when LINK beacon is received from device.");
+                                delete self.deviceProfile.sendingLINK;
+                            }
+                        }, 10000); // Allow resend of LINK after 10 sec.
+                    }
+                    );
+            } else {
+                console.error(Date.now() + " Reached maximum number of retries of sending LINK command to device.");
+            }
+        }
 
         //if (beaconID !== DeviceProfile_ANTFS.prototype.BEACON_ID)
         //    console.log(Date.now()+" Got a normal broadcast. Awaiting beacon broadcast from device.", data);
@@ -1262,31 +1288,6 @@ DeviceProfile_ANTFS.prototype = {
                                 // Do not enter this region more than once (can reach 8 beacon msg. pr sec === channel period)
                                 if (typeof self.deviceProfile.sendingLINK === "undefined") {
                                     self.deviceProfile.sendingLINK = true;
-
-                                    function retryLink() {
-                                        if (++retryLINK < 10) {
-                                            self.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(self,
-                                                function error() {
-                                                    console.log(Date.now() + " Failed to send ANT-FS link command to device");
-                                                    delete self.deviceProfile.sendingLINK;
-
-                                                },
-                                                function success() {
-                                                    console.log(Date.now() + " ANT-FS link command acknowledged by device.");
-                                                    // Device should transition to authentication beacon now if all went well
-                                                    setTimeout(function handler() {
-                                                        if (typeof self.deviceProfile.sendingLINK !== "undefined") {
-                                                            console.log(Date.now() + " Device did not transition to authentication state. Retrying when LINK beacon is received from device.");
-                                                            delete self.deviceProfile.sendingLINK;
-                                                        }
-                                                    }, 10000); // Allow resend of LINK after 10 sec.
-                                                }
-                                                );
-                                        } else {
-                                            console.error(Date.now() + " Reached maximum number of retries of sending LINK command to device.");
-                                        }
-                                    }
-
                                     retryLink();
                                 }
 
@@ -1433,7 +1434,7 @@ DeviceProfile_ANTFS.prototype = {
                                                self.nodeInstance.deviceProfile_ANTFS.parseDirectory.call(self, self.deviceProfile.response.downloadFile);
 
                                                delete self.deviceProfile.processingCommand;
-                                           })
+                                           });
                                         });
                                     } else {
                                         console.log(Date.now() + " No files to erase");
