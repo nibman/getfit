@@ -1,3 +1,5 @@
+"use strict";
+
 // Based on ANT-FS PCTOOLS Source Code
 // http://www.thisisant.com/developer/ant/licensing/ant-shared-source-license
 
@@ -6,7 +8,6 @@ module.exports.Calc16 = function (data) {
     return module.exports.UpdateCRC16(0, data);
 };
 
- 
 module.exports.UpdateCRC16 = function (CRCSeed, data) {
     var byteNr, len = data.length;
     for (byteNr = 0; byteNr < len; byteNr++)

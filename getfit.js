@@ -1,3 +1,5 @@
+"use strict";
+
 // Some info. from a python implementation of ANTFS: https://github.com/Tigge/Garmin-Forerunner-610-Extractor
 
 var
@@ -27,19 +29,19 @@ function GetFIT() {
     function parseIndex(indexArg) {
 
         var parsed = indexArg.split(',').map(function (value, index, arr) {
-            var range = value.split('-'), low, high, arr = [], v;
+            var range = value.split('-'), low, high, newarr = [], v;
             if (range.length === 2) {
-                low = parseInt(range[0]);
-                high = parseInt(range[1])
+                low = parseInt(range[0],10);
+                high = parseInt(range[1], 10);
 
                 if (low < high)
                     for (var nr = low; nr <= high; nr++)
-                        arr.push(nr);
+                        newarr.push(nr);
 
-                return arr;
+                return newarr;
             } else
 
-                v = parseInt(value, 10); if (v !== NaN) return v;
+                v = parseInt(value, 10); if (!isNaN(v)) return v;
         }),
         elementNr, rangeArr, rangeElementNr, indexArr = [] ;
 
@@ -49,12 +51,12 @@ function GetFIT() {
             if (typeof parsed[elementNr] === 'object') // Process range
             {
                 rangeArr = parsed[elementNr];
-                for (rangeElementNr=0;rangeElementNr<rangeArr.length;rangeElementNr++)
+                for (rangeElementNr = 0; rangeElementNr < rangeArr.length; rangeElementNr++)
                     if (typeof rangeArr[rangeElementNr] === 'number')
                         indexArr.push(rangeArr[rangeElementNr]);
             }
             else if (typeof parsed[elementNr] === 'number')
-                indexArr.push(parsed[elementNr])
+                indexArr.push(parsed[elementNr]);
 
         console.log("Index arr",indexArr);
 
@@ -97,7 +99,7 @@ function GetFIT() {
         console.log("Commands :");
         console.log("   -d, --download - download new files from device");
         console.log("   -d n - download file at index n");
-        console.log("   -d 'n1,n2,n3-n4' -download file at index n1 and n2 and n3 to n4")
+        console.log("   -d 'n1,n2,n3-n4' -download file at index n1 and n2 and n3 to n4");
         console.log("   -d * - download all readable files");
         console.log("   -e, --erase  n1 - erase file at index n1");
     }
@@ -110,15 +112,15 @@ function GetFIT() {
     this.deviceProfile_ANTFS = new DeviceProfile_ANTFS(this);
     this.deviceProfile_SPDCAD = new DeviceProfile_SPDCAD(this);
 
-    function success() {
+    function successCB() {
         self.start();
     }
 
-    function error() {
+    function errorCB() {
         self.stop();
     }
 
-    self.ANT.init(error, success);
+    self.ANT.init(errorCB, successCB);
 }
 
 GetFIT.prototype = {
@@ -127,11 +129,9 @@ GetFIT.prototype = {
 
     WEBSOCKET_HOST: 'localhost',
     WEBSOCKET_PORT: 8093,
-
-   
-
-    broadCast:  // Broadcast data to all clients
-     function (data) {
+    
+    // Broadcast data to all clients
+    broadCast:  function (data) {
          var self = this;
 
          if (typeof self.wss === "undefined") {
@@ -153,9 +153,11 @@ GetFIT.prototype = {
 
     stop: function () {
         var self = this;
+
         clearInterval(self.heartBeatIntervalID);
+
         if (typeof self.wss !== "undefined") {
-            console.log("Closing websocket server, terminating connections to clients");
+            console.log(Date.now()+ " Closing websocket server");
             self.wss.close();
         }
 
@@ -227,6 +229,13 @@ GetFIT.prototype = {
             });
         });
 
+        
+        this.startWebSocketServer();
+
+    },
+
+    startWebSocketServer: function () {
+        var self = this;
         // Start websocket server
 
         var WebSocketServer = require('ws').Server;
@@ -235,29 +244,25 @@ GetFIT.prototype = {
         self.wss = new WebSocketServer({ host: GetFIT.prototype.WEBSOCKET_HOST, port: GetFIT.prototype.WEBSOCKET_PORT, clientTracking: true });
 
         self.wss.on('listening', function () {
-            console.log("WebsocketServer: listening on " + GetFIT.prototype.WEBSOCKET_HOST + ":" + GetFIT.prototype.WEBSOCKET_PORT);
+            console.log(Date.now()+ " WebSocketServer: listening on " + GetFIT.prototype.WEBSOCKET_HOST + ":" + GetFIT.prototype.WEBSOCKET_PORT);
         });
 
         self.wss.on('connection', function (ws) {
-            console.log(Date.now() + " WebsocketServer: New client connected - will receive broadcast data");
+            console.log(Date.now() + " WebSocketServer: New client connected - will receive broadcast data");
             // console.log(ws);
             //self.websockets.push(ws); // Keeps track of all incoming websocket clients
 
             ws.on('message', function (message) {
-                console.log(Date.now() + ' Received: %s', message);
+                console.log(Date.now() + ' WebSocketServer received: %s', message);
                 //    ws.send('something');
             });
         });
 
         self.wss.on('error', function (error) {
-            console.log(Date.now() + "WebsocketServer: Error ", error);
+            console.log(Date.now() + "WebSocketServer: Error ", error);
         });
-
-
-    },
+    }
 
 };
 
 var ANTNode = new GetFIT();
-
-
