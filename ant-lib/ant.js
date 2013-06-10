@@ -560,7 +560,7 @@ ANT.prototype.parse_response = function (data) {
                     if (!antInstance.emit(ANT.prototype.EVENT.BURST, channelNr, antInstance.channelConfiguration[channelNr].burstData, burstParser))
                         console.warn("No listener for event ANT.prototype.EVENT.BURST");
                     else
-                        antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Burst data received, bytes = " + antInstance.channelConfiguration[channelNr].burstData.length);
+                        antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Burst data received " + antInstance.channelConfiguration[channelNr].burstData.length+" bytes time "+ diff + " ms rate "+(antInstance.channelConfiguration[channelNr].burstData.length / (diff / 1000)).toFixed(1)+" bytes/sec");
 
                     //antInstance.channelConfiguration[channelNr].parseBurstData(antInstance.channelConfiguration[channelNr].burstData, burstParser);
                 }

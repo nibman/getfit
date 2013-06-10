@@ -1028,7 +1028,7 @@ DeviceProfile_ANTFS.prototype = {
             // console.log(file);
             self.deviceProfile.directory.index[file.index] = file;
 
-            file.fileName = getFileName(file);
+            file.fileName = getFileName(file)();
             // Drawback : each instance a function -> maybe move to a prototype
             file.toString = AsString.call(file);
 
