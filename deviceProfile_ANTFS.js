@@ -960,7 +960,6 @@ DeviceProfile_ANTFS.prototype = {
             if (this.generalFlags.crypto)
                 generalFlags += '_crypto';
 
-
             if (this.dataTypeFlags !== 0x00)
                 dataTypeFlags = this.dataTypeFlags;
 
@@ -1368,7 +1367,6 @@ DeviceProfile_ANTFS.prototype = {
                         console.log("COMMAND QUEUE:", self.nodeInstance.commandQueue);
                         currentCommand = self.nodeInstance.commandQueue.shift(); // Take next command
 
-
                         if (typeof currentCommand === "undefined") {
                             console.warn(Date.now() + " No commands available for further processing");
                             self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self, function () { });
@@ -1390,7 +1388,6 @@ DeviceProfile_ANTFS.prototype = {
                                                 var genericIndex;
 
                                                 self.nodeInstance.deviceProfile_ANTFS.parseDirectory.call(self, self.deviceProfile.response.downloadFile);
-
 
                                                 if (currentCommand === DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW)
                                                     genericIndex = self.deviceProfile.directory.newIndex;

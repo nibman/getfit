@@ -1548,11 +1548,12 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
     var channel = this.channelConfiguration[channelConfNr];
     //console.log("Closing channel " + channel.number);
     close_channel_msg = this.create_message(this.ANT_MESSAGE.close_channel, new Buffer([channel.number]));
+
     this.sendOnly(close_channel_msg, ANT.prototype.ANT_DEFAULT_RETRY, 500, errorCallback,
         function success() {
             var retryNr = 0;
 
-            function retryEvent() {
+            function retryEventChannelClosed() {
 
                 self.read(500, errorCallback,
                     function success(data) {
@@ -1563,7 +1564,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                             retryNr++;
                             if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
                                 console.log(Date.now() + " Discarding data. Retrying to get EVENT CHANNEL CLOSED from ANT device");
-                                retryEvent();
+                                retryEventChannelClosed();
                             }
                             else {
                                 console.log(Date.now() + " Reached maximum number of retries. Aborting.");
@@ -1575,8 +1576,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                     });
             }
 
-
-            function retry() {
+            function retryResponseNoError() {
                 self.read(500, errorCallback,
                              function success(data) {
                                  if (!self.isResponseNoError(data, self.ANT_MESSAGE.close_channel.id)) {
@@ -1584,7 +1584,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                                      retryNr++;
                                      if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
                                          console.log(Date.now() + " Discarding data. Retrying to get NO ERROR response from ANT device");
-                                         retry();
+                                         retryResponseNoError();
                                      }
                                      else {
                                          console.log(Date.now() + " Reached maximum number of retries. Aborting.");
@@ -1597,12 +1597,12 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                                      // Wait for EVENT_CHANNEL_CLOSED
                                      // If channel status is tracking -> can get broadcast data packet before channel close packet
 
-                                     retryEvent();
+                                     retryEventChannelClosed();
                                  
                              });
             }
 
-            retry();
+            retryResponseNoError();
         });
 };
 
@@ -1739,7 +1739,7 @@ ANT.prototype.sendBurstTransfer = function (ucChannel, pucData, errorCallback, s
         self = this,
         burstMsg;
 
-    // console.log("Burst transfer of %d packets on channel %d", numberOfPackets, ucChannel);
+    console.log(Date.now()+" Burst transfer of %d packets (8-byte) on channel %d, length of payload is %d bytes", numberOfPackets, ucChannel,pucData.length);
 
     // Add to retry queue -> will only be of length === 1
     burstMsg = {
