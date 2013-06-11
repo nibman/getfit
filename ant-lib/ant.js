@@ -7,6 +7,7 @@ var events = require('events'),
 
 // Low level API/interface to ANT USB stick
 function ANT(idVendor, idProduct, nodeInstance) {
+
     events.EventEmitter.call(this); // Call super constructor
 
     if (typeof idVendor === "undefined")
@@ -1570,7 +1571,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                             self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Expected event CHANNEL_CLOSED");
                             retryNr++;
                             if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
-                                self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Discarding data. Retrying to get EVENT CHANNEL CLOSED from ANT device");
+                                self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Discarding data from ANT engine packet queue. Retrying to get EVENT CHANNEL CLOSED from ANT device");
                                 retryEventChannelClosed();
                             }
                             else {
@@ -1590,7 +1591,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                                      self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Expected response NO ERROR for close channel");
                                      retryNr++;
                                      if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
-                                         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Discarding data. Retrying to get NO ERROR response from ANT device");
+                                         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Discarding data from ANT engine packet queue. Retrying to get NO ERROR response from ANT device");
                                          retryResponseNoError();
                                      }
                                      else {

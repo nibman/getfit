@@ -262,11 +262,16 @@ DeviceProfile_ANTFS.prototype = {
         else {
             // Packet 1 BEACON
             beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data, true);
-            //console.log("BEACON PARSE", beacon.toString());
+
             if (beacon.hostSerialNumber !== this.nodeInstance.ANT.serialNumber) {
                 console.warn("Beacon in bulk transfer header/packet 1, was for ", beacon.hostSerialNumber, ", our device serial number is ", this.nodeInstance.ANT.serialNumber, "beacon packet ", data);
 
             } else {
+
+                console.log(Date.now(), beacon.toString(), " burst data length:", data.length);
+
+                self.deviceProfile.lastBeacon = { beacon: beacon, timestamp: Date.now() };
+
                 // Packet 2 ANT-FS RESPONSE
                 if (data[8] !== DeviceProfile_ANTFS.prototype.COMMAND_ID.COMMAND_RESPONSE_ID) {
                     console.error("Expected ANT-FS COMMAND ID 0x44 at start of packet 2", data, "bytes:", data.length);
@@ -1087,9 +1092,11 @@ DeviceProfile_ANTFS.prototype = {
         downloadMsg = self.deviceProfile.ANTFSCOMMAND_Download(dataIndex, dataOffset, initialRequest, CRCSeed, maximumBlockSize);
 
         function retry() {
+            // Delay should be higher than the channel period which is 125 ms, so that we can get client device state in beacon broadcast (only want to
+            // send request when client is in TRANSPORT state)
             if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
-                console.log(Date.now() + " Client is busy. Delaying burst of download request with 1000 ms");
-                setTimeout(function () { retry(); }, 1000);
+                console.log(Date.now() + " Client is busy. Delaying burst of download request with 130 ms");
+                setTimeout(function () { retry(); }, 130);
             }
             else
                 self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error() { console.log(Date.now() + " Failed to send burst transfer with download request"); },
@@ -1121,8 +1128,8 @@ DeviceProfile_ANTFS.prototype = {
 
         function retryIfBusy() {
             if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
-                console.log(Date.now() + " Client is busy. Delaying burst of erase request with 1000 ms");
-                setTimeout(function () { retryIfBusy(); }, 1000);
+                console.log(Date.now() + " Client is busy. Delaying burst of erase request with 130 ms");
+                setTimeout(function () { retryIfBusy(); }, 130);
             }
             else
                 self.nodeInstance.ANT.sendAcknowledgedData(channelNr, eraseMsg,
@@ -1229,7 +1236,7 @@ DeviceProfile_ANTFS.prototype = {
                 self.nodeInstance.deviceProfile_ANTFS.sendLinkCommand.call(self,
                     function error() {
                         console.log(Date.now() + " Failed to send ANT-FS link command to device");
-                        delete self.deviceProfile.sendingLINK;
+                        delete self.deviceProfile.sendingLINK; // Release MUTEX
 
                     },
                     function success() {
@@ -1239,6 +1246,7 @@ DeviceProfile_ANTFS.prototype = {
                             if (typeof self.deviceProfile.sendingLINK !== "undefined") {
                                 console.log(Date.now() + " Device did not transition to authentication state. Retrying when LINK beacon is received from device.");
                                 delete self.deviceProfile.sendingLINK;
+                                retryLINK = 0;
                             }
                         }, 10000); // Allow resend of LINK after 10 sec.
                     }
@@ -1262,12 +1270,25 @@ DeviceProfile_ANTFS.prototype = {
 
             clearTimeout(self.deviceProfile.linkLayerTimeout);
 
+
             switch (beacon.clientDeviceState) {
+
+                case DeviceProfile_ANTFS.prototype.STATE.BUSY:
+                    console.log(Date.now(), beacon.toString());
+                    break;
 
                 case DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER:
 
                     self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER; // Follow same state in host as the device/client;
                     // self.deviceProfile.stateCounter[DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER]++;
+                    
+                    // Reset MUTEX'es 
+
+                    if (typeof self.deviceProfile.sendingAUTH_CLIENT_SN !== "undefined")
+                        delete self.deviceProfile.sendingAUTH_CLIENT_SN;
+
+                    if (typeof self.deviceProfile.processingCommand !== "undefined")
+                        delete self.deviceProfile.processingCommand;
 
                     self.deviceProfile.linkLayerTimeout = setTimeout(function () {
                         console.log(Date.now() + " Did not receive any LINK beacon from device in 1 second, connection probably lost/device closed channel");
@@ -1284,7 +1305,7 @@ DeviceProfile_ANTFS.prototype = {
 
                             case DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE.PASSKEY_AND_PAIRING_ONLY:
 
-                                // Do not enter this region more than once (can reach 8 beacon msg. pr sec === channel period)
+                                // Do not enter this region more than once (can reach 8 beacon msg. pr sec === channel period) -> MUTEX self.deviceProfile.sendingLINK
                                 if (typeof self.deviceProfile.sendingLINK === "undefined") {
                                     self.deviceProfile.sendingLINK = true;
                                     retryLink();
@@ -1311,7 +1332,8 @@ DeviceProfile_ANTFS.prototype = {
                     if (beacon.hostSerialNumber !== self.nodeInstance.ANT.serialNumber)
                         console.warn("Authentication beacon was for ", beacon.hostSerialNumber, ", our device serial number is ", self.nodeInstance.ANT.serialNumber);
                     else
-                        if (typeof self.deviceProfile.sendingAUTH_CLIENT_SN === "undefined") {
+                        if (typeof self.deviceProfile.sendingAUTH_CLIENT_SN === "undefined") // MUTEX
+                        {
                             self.deviceProfile.sendingAUTH_CLIENT_SN = true;
                             // Observation: client device will transmit AUTHENTICATION beacon for 10 seconds after receiving this request
                             self.nodeInstance.deviceProfile_ANTFS.sendRequestForClientDeviceSerialNumber.call(self, function error(err) {
@@ -1361,7 +1383,8 @@ DeviceProfile_ANTFS.prototype = {
                     // If no transmission takes place on the established link, client will close channel in 10 seconds and return to LINK state.
                     // p. 56 in ANT-FS spec. PING-command 0x05 can be sent to keep alive link to reset client device connection timer
 
-                    if (typeof self.deviceProfile.processingCommand === "undefined") { // Can only process one command at a time
+                    if (typeof self.deviceProfile.processingCommand === "undefined") // MUTEX
+                    { // Can only process one command at a time
                         self.deviceProfile.processingCommand = true;
 
                         console.log("COMMAND QUEUE:", self.nodeInstance.commandQueue);
@@ -1369,9 +1392,11 @@ DeviceProfile_ANTFS.prototype = {
 
                         if (typeof currentCommand === "undefined") {
                             console.warn(Date.now() + " No commands available for further processing");
-                            self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self, function () { });
-                            //delete self.deviceProfile.processingCommand;
-                            // Won't allow more processing in transport layer now, client device will return to 
+                            self.nodeInstance.deviceProfile_ANTFS.disconnectFromDevice.call(self, function complete() {
+                                delete self.deviceProfile.processingCommand;
+                            });
+                            
+                            // Won't allow more processing in transport layer now, client device will return to LINK layer
                         }
                         else
                             switch (currentCommand) {
