@@ -1704,7 +1704,7 @@ ANT.prototype.sendAcknowledgedData = function (ucChannel, pucBroadcastData, erro
                     else
                         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "No transfer failed callback specified");
                 },
-                function success() { self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Sent acknowledged message to ANT engine "+ ack_msg+ pucBroadcastData.friendly); });
+                function success() { self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Sent acknowledged message to ANT engine "+ ack_msg.friendly+" "+ pucBroadcastData.friendly); });
         } else {
             self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Reached maxium number of retries of "+ resendMsg.message.friendly);
             if (typeof resendMsg.EVENT_TRANSFER_TX_FAILED_CB === "function")

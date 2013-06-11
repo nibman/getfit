@@ -179,6 +179,27 @@ DeviceProfile_ANTFS.prototype = {
         ERASE_MULTIPLE: 0x01,
     },
 
+    REQUEST_TRANSFER_TYPE : {
+        ACKNOWLEDGED : 0x00,
+        BURST : 0x01
+    },
+
+    REQUEST_TYPE : {
+        DOWNLOAD: 0x00,
+        ERASE : 0x01
+    },
+
+    REQUEST_STATE: {
+        0x00 : "request" ,
+        REQUEST : 0x00,
+        SENT: 0x01,
+        0x01 : "sent",
+        ERROR: 0x02,
+        0x02 : "error",
+        BUSY: 0x03,
+        0x03 : "busy"
+    },
+
     setHomeDirectory: function (homeDir) {
         var self = this; // Keep our this reference in callbacks please!
 
@@ -233,9 +254,9 @@ DeviceProfile_ANTFS.prototype = {
         function repeatLastRequest() {
             console.log(Date.now() + " Repeat request", self.deviceProfile.request);
 
-            if (self.deviceProfile.request.request === "download") {
+            if (self.deviceProfile.request.request === DeviceProfile_ANTFS.prototype.REQUEST_TYPE.DOWNLOAD) {
                 self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, self.deviceProfile.request.dataOffset,
-                                       self.deviceProfile.initialRequest, self.deviceProfile.request.CRCSeed, 0, self.deviceProfile.request.callback); // Reuse previous callback for new request
+                                       self.deviceProfile.request.initialRequest, self.deviceProfile.request.CRCSeed, 0, self.deviceProfile.request.callback); // Reuse previous callback for new request
 
             }
             else
@@ -395,10 +416,12 @@ DeviceProfile_ANTFS.prototype = {
 
                                         currentCRCSeed = CRC.Calc16(download_response.data);
                                         self.deviceProfile.CRCSeed.push(currentCRCSeed);
+                                        //downloadRequestType = DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER;
                                     } else {
                                         currentCRCSeed = self.deviceProfile.CRCSeed[self.deviceProfile.CRCSeed.length - 1];
                                         self.deviceProfile.CRCSeed.push(CRC.UpdateCRC16(currentCRCSeed, download_response.data));
                                         currentCRCSeed = self.deviceProfile.CRCSeed[self.deviceProfile.CRCSeed.length - 1];
+                                        //downloadRequestType = DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER;
                                     }
 
 
@@ -431,8 +454,13 @@ DeviceProfile_ANTFS.prototype = {
                                         // Try to resume download with last good CRC
                                         console.log(Date.now() + " Resume block " + resumeIndex + " data offset: " + currentDataOffset + " CRC Seed: " + currentCRCSeed);
 
-                                    } else
+                                    } else {
                                         currentDataOffset = download_response.dataOffset + download_response.totalRemainingLength;
+                                        downloadRequestType = DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.CONTINUATION_OF_PARTIALLY_COMPLETED_TRANSFER;
+
+                                    }
+
+                                  //  console.log(currentDataOffset, downloadRequestType);
 
                                     self.nodeInstance.deviceProfile_ANTFS.sendDownloadRequest.call(self, self.deviceProfile.request.dataIndex, currentDataOffset,
                                         downloadRequestType, currentCRCSeed, 0, self.deviceProfile.request.callback); // Reuse previous callback for new request
@@ -572,6 +600,10 @@ DeviceProfile_ANTFS.prototype = {
         // Packet 2
 
         payload[8] = 0;
+        if (typeof initialRequest === "undefined") {
+            console.log("Initial request is undefined");
+            console.trace();
+        }
         payload[9] = initialRequest;
 
         if (initialRequest === DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER) {
@@ -1074,7 +1106,8 @@ DeviceProfile_ANTFS.prototype = {
 
             self.deviceProfile.request = {
                 timestamp: Date.now(),
-                request: 'download',
+                preferredTransferType: DeviceProfile_ANTFS.prototype.REQUEST_TRANSFER_TYPE.BURST,
+                request: DeviceProfile_ANTFS.prototype.REQUEST_TYPE.DOWNLOAD,
                 dataIndex: dataIndex,
                 initialRequest: initialRequest,
                 //parser: dataParser,
@@ -1084,23 +1117,32 @@ DeviceProfile_ANTFS.prototype = {
             self.deviceProfile.request.dataOffset = dataOffset;
             self.deviceProfile.request.CRCSeed = CRCSeed;
             self.deviceProfile.request.maximumBlockSize = maximumBlockSize;
-            self.deviceProfile.initialRequest = initialRequest;
+            self.deviceProfile.request.initialRequest = initialRequest;
+            
         }
 
         // console.log(Date.now() + "dataIndex:", dataIndex, "offset:", dataOffset, "initreq.:", initialRequest, "crcseed:", CRCSeed, "maxblocksize:", maximumBlockSize);
 
         downloadMsg = self.deviceProfile.ANTFSCOMMAND_Download(dataIndex, dataOffset, initialRequest, CRCSeed, maximumBlockSize);
 
+        self.deviceProfile.request.rawMessage = downloadMsg;
+        self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.REQUEST;
+
         function retry() {
             // Delay should be higher than the channel period which is 125 ms, so that we can get client device state in beacon broadcast (only want to
             // send request when client is in TRANSPORT state)
             if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
+                self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.BUSY;
                 console.log(Date.now() + " Client is busy. Delaying burst of download request with 130 ms");
                 setTimeout(function () { retry(); }, 130);
             }
             else
-                self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error() { console.log(Date.now() + " Failed to send burst transfer with download request"); },
+                self.nodeInstance.ANT.sendBurstTransfer(channelNr, downloadMsg, function error() {
+                    self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.ERROR;
+                    console.log(Date.now() + " Failed to send burst transfer with download request");
+                },
            function success() {
+               self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.SENT;
                console.log(Date.now() + " Sent burst transfer with download request dataIndex: %d dataOffset %d CRC seed %d", dataIndex, dataOffset, CRCSeed);
            }, "DownloadRequest index: " + dataIndex + " data offset: " + dataOffset + " initial request: " + initialRequest + "CRC seed: " + CRCSeed + "max. block size: " + maximumBlockSize);
         }
@@ -1116,7 +1158,8 @@ DeviceProfile_ANTFS.prototype = {
         if (initRequest) // if not initRequest its a retry request
             self.deviceProfile.request = {
                 timestamp: Date.now(),
-                request: 'erase',
+                preferredTransferType : DeviceProfile_ANTFS.prototype.REQUEST_TRANSFER_TYPE.ACKNOWLEDGED,
+                request: DeviceProfile_ANTFS.prototype.REQUEST_TYPE.ERASE,
                 retry: 0,  // Number of retries
                 dataIndex: dataIndex,
                 callback: eraseFinishedCB, // When we got erase response
@@ -1124,8 +1167,12 @@ DeviceProfile_ANTFS.prototype = {
 
         eraseMsg = self.deviceProfile.ANTFSCOMMAND_Erase(dataIndex);
 
+        self.deviceProfile.request.rawMessage = eraseMsg;
+        self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.REQUEST;
+
         console.log(self.deviceProfile.request, eraseMsg);
 
+        // MAYBE : Optimize sending of new request when recieving client state = TRANSPORT broadcast instead of using a timeout
         function retryIfBusy() {
             if (self.deviceProfile.lastBeacon.beacon.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
                 console.log(Date.now() + " Client is busy. Delaying burst of erase request with 130 ms");
@@ -1134,9 +1181,11 @@ DeviceProfile_ANTFS.prototype = {
             else
                 self.nodeInstance.ANT.sendAcknowledgedData(channelNr, eraseMsg,
                     function error() {
+                        self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.ERROR;
                         console.log(Date.now() + " Failed to send acknowledged transfer with erase request");
                     },
                    function success() {
+                       self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.SENT;
                        console.log(Date.now() + " Sent acknowledged transfer with erase request", eraseMsg);
                    }, "EraseRequest index: " + dataIndex);
         }
@@ -1377,6 +1426,8 @@ DeviceProfile_ANTFS.prototype = {
                     break;
 
                 case DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER:
+
+                    //console.log(Date.now() + "Request:", self.deviceProfile.request);
 
                     self.deviceProfile.state = DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER;
                     delete self.deviceProfile.sendingAUTH_CLIENT_SN;
