@@ -29,6 +29,10 @@ function ANT(idVendor, idProduct, nodeInstance) {
 
     //console.log("ANT instance instance of EventEmitter",this instanceof events.EventEmitter );
 
+
+
+
+
     this.addListener(ANT.prototype.EVENT.LOG_MESSAGE, this.showLogMessage);
 
     this.addListener(ANT.prototype.EVENT.STARTUP, this.parseNotificationStartup);
@@ -726,25 +730,25 @@ ANT.prototype.parse_response = function (data) {
 // Continuously listen on incoming traffic and send it to the general parser for further processing
 ANT.prototype.listen = function (transferCancelledCallback) {
 
-    var self = this, NO_TIMEOUT = 0, TIMEOUT = 60000;
+    var self = this, NO_TIMEOUT = 0, TIMEOUT = 30000;
 
     function retry() {
 
         self.read(TIMEOUT, function error(err) {
 
             if (err.errno === usb.LIBUSB_TRANSFER_TIMED_OUT) {
-                this.emit(ANT.prototype.EVENT.LOG_MESSAGE, " No ANT data received in "+TIMEOUT+ " (ms)");
+                self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " No ANT data received in "+TIMEOUT+ " ms");
                 process.nextTick(retry);
             }
             else if (err.errno !== usb.LIBUSB_TRANSFER_CANCELLED) { 
-                this.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Receive error in listen:"+ err);
+                self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Receive error in listen:"+ err);
                 process.nextTick(retry);
             } else { // Transfer cancelled, may be aborted by pressing Ctrl-C in Node.js 
                 //console.log(error);
                 if (typeof transferCancelledCallback === "function")
                     transferCancelledCallback();
                 else
-                    this.emit(ANT.prototype.EVENT.LOG_MESSAGE,"No transfer cancellation callback specified");
+                    self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"No transfer cancellation callback specified");
             }
 
         }, function success(data) {
@@ -1375,8 +1379,20 @@ ANT.prototype.init = function (errorCallback, callback) {
     }
 };
 
+// Initializes a channel
+ANT.prototype.setChannelConfiguration = function (channelConfNr, channel) {
+    var self = this;
+
+    if (typeof self.channelConfiguration === "undefined") {
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "No channel configuration object available to attach channel to. getCapabilities should be run beforehand to get max. available channels for device");
+        return;
+    }
+
+    self.channelConfiguration[channelConfNr] = channel;
+},
+
 // Configures a channel
-ANT.prototype.configure = function (channelConfNr, errorCallback, successCallback) {
+ANT.prototype.activateChannelConfiguration = function (channelConfNr, errorCallback, successCallback) {
     var self = this;
     var channel = self.channelConfiguration[channelConfNr];
 

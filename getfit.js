@@ -191,21 +191,21 @@ GetFIT.prototype = {
 
         // Channel configurations indexed by channel nr.
 
-        self.ANT.channelConfiguration[0] = self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT, 0, 0, 0, ANT.prototype.INFINITE_SEARCH);
-        self.ANT.channelConfiguration[1] = self.deviceProfile_ANTFS.getSlaveChannelConfiguration(Network.prototype.ANT_FS, 1, 0, 0, 0, GetFIT.prototype.STARTUP_DIRECTORY);
-        self.ANT.channelConfiguration[2] = self.deviceProfile_SDM.getSlaveChannelConfiguration(Network.prototype.ANT, 2, 0, 0, ANT.prototype.INFINITE_SEARCH);
-        self.ANT.channelConfiguration[3] = self.deviceProfile_SPDCAD.getSlaveChannelConfiguration(Network.prototype.ANT, 3, 0, 0, ANT.prototype.INFINITE_SEARCH);
+        self.ANT.setChannelConfiguration(0, self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT, 0, 0, 0, ANT.prototype.INFINITE_SEARCH));
+        self.ANT.setChannelConfiguration(1, self.deviceProfile_ANTFS.getSlaveChannelConfiguration(Network.prototype.ANT_FS, 1, 0, 0, 0, GetFIT.prototype.STARTUP_DIRECTORY));
+        self.ANT.setChannelConfiguration(2,self.deviceProfile_SDM.getSlaveChannelConfiguration(Network.prototype.ANT, 2, 0, 0, ANT.prototype.INFINITE_SEARCH));
+        self.ANT.setChannelConfiguration(3,self.deviceProfile_SPDCAD.getSlaveChannelConfiguration(Network.prototype.ANT, 3, 0, 0, ANT.prototype.INFINITE_SEARCH));
 
         // Lesson : ANT-FS and HRM on different network due to different keys
         // Seems like : Cannot simultaneously listen to broadcasts from ANT-FS =  2450 MHz and HRM/Bike spd/Stride sensor = 2457 Mhz, but with different msg. periode
 
-        self.ANT.configure(0, function () { console.log("Could not configure device profile HRM"); }, function () {
+        self.ANT.activateChannelConfiguration(0, function () { console.log("Could not configure device profile HRM"); }, function () {
             console.log("Configuration of device profile HRM channel OK");
-            self.ANT.configure(1, function () { console.log("Could not configure device profile ANT-FS"); }, function () {
+            self.ANT.activateChannelConfiguration(1, function () { console.log("Could not configure device profile ANT-FS"); }, function () {
                 console.log("Configuration of device profile ANT-FS OK");
-                self.ANT.configure(3, function () { console.log("Could not configure device profile SPDCAD"); }, function () {
+                self.ANT.activateChannelConfiguration(3, function () { console.log("Could not configure device profile SPDCAD"); }, function () {
                     //console.log("Configuration of device profile SDM OK");
-                    self.ANT.configure(2, function () { console.log("Could not configure device profile SDM"); }, function () {
+                    self.ANT.activateChannelConfiguration(2, function () { console.log("Could not configure device profile SDM"); }, function () {
                         //console.log("Configuration of device profile SDM OK");
                         //self.ANT.open(0, function () { console.log("Could not open channel for HRM"); }, function () {
                         //    console.log("Open channel for HRM");
