@@ -699,6 +699,10 @@ DeviceProfile_ANTFS.prototype = {
 
     channelResponseEvent: function (data) {
         //console.log(Date.now() + " Got channelResponseEvent on ANT-FS channel ", data);
+        var self = this, antInstance = this.nodeInstance.ANT;
+        
+        if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_RX_FAIL_GO_TO_SEARCH, data))
+            console.log(Date.now() + " Channel "+ self.number+" cannot track broadcast anymore, missed to many expected broadcasts from device");
 
     },
 
