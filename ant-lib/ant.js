@@ -566,8 +566,8 @@ ANT.prototype.parse_response = function (data) {
                     if (typeof burstMsg !== "undefined")
                         burstParser = burstMsg.parser;
 
-                    if (!antInstance.emit(ANT.prototype.EVENT.BURST, channelNr, antInstance.channelConfiguration[channelNr].burstData, burstParser))
-                        antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE,"No listener for event ANT.prototype.EVENT.BURST");
+                    if (!antInstance.channelConfiguration[channelNr].emit(Channel.prototype.EVENT.BURST, channelNr, antInstance.channelConfiguration[channelNr].burstData, burstParser))
+                        antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE,"No listener for event Channel.prototype.EVENT.BURST on channel "+channelNr);
                     else
                         antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Burst data received " + antInstance.channelConfiguration[channelNr].burstData.length+" bytes time "+ diff + " ms rate "+(antInstance.channelConfiguration[channelNr].burstData.length / (diff / 1000)).toFixed(1)+" bytes/sec");
 
@@ -602,8 +602,8 @@ ANT.prototype.parse_response = function (data) {
             }
 
             // Call to broadcast handler for channel
-            if (!antInstance.emit(ANT.prototype.EVENT.BROADCAST, data))
-                antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE,"No listener for event ANT.prototype.EVENT.BROADCAST");
+            if (!antInstance.channelConfiguration[channelNr].emit(Channel.prototype.EVENT.BROADCAST, data))
+                antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE,"No listener for event Channel.prototype.EVENT.BROADCAST on channel "+channelNr);
 
             //antInstance.channelConfiguration[channelNr].broadCastDataParser(data);
 

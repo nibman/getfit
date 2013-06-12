@@ -13,7 +13,14 @@ function Channel(channelNr, channelType, networkNr, networkKey, startupDirectory
 util.inherits(Channel, events.EventEmitter);
 
 Channel.prototype.EVENT = {
-    CHANNEL_RESPONSE_EVENT : "channelResponseEvent"
+
+    // Event and responses
+    CHANNEL_RESPONSE_EVENT: "channelResponseEvent",
+
+    // Data
+
+    BROADCAST: "broadcast",
+    BURST : "burst"
 },
 
 Channel.prototype.CHANNEL_TYPE = {

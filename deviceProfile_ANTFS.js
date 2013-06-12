@@ -12,8 +12,8 @@ function DeviceProfile_ANTFS(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
 
-    this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BROADCAST, this.broadCastDataParser);
-    this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BURST, this.parseBurstData);
+    //this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BROADCAST, this.broadCastDataParser);
+    //this.nodeInstance.ANT.addListener(ANT.prototype.EVENT.BURST, this.parseBurstData);
 
     this.state = DeviceProfile_ANTFS.prototype.STATE.INIT; // Init state before first LINK beacon received from device
     //this.stateCounter[DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER] = 0;
@@ -225,7 +225,7 @@ DeviceProfile_ANTFS.prototype = {
     },
 
     parseBurstData: function (channelNr, data, parser) {
-        var self = this.channelConfiguration[channelNr], beacon, numberOfPackets = data.length / 8,
+        var self = this, beacon, numberOfPackets = data.length / 8,
             authenticate_response = {}, packetNr,
             download_response = {}, currentCRCSeed,
             erase_response = {},
@@ -264,8 +264,10 @@ DeviceProfile_ANTFS.prototype = {
         }
 
         if (channelNr !== self.number) // Filter out burst for other channels
+        {
+            console.error(Date.now() + " Received burst data for channel ", channelNr, " intended for channel ", self.number);
             return;
-
+        }
         if (self.deviceProfile.timeoutID) {
             clearInterval(self.deviceProfile.timeoutID);
             self.deviceProfile.timeoutRetry = 0;
@@ -685,8 +687,9 @@ DeviceProfile_ANTFS.prototype = {
 
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
-        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
-        
+        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channelResponseEvent);
+        this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.broadCastDataParser);
+        this.channel.addListener(Channel.prototype.EVENT.BURST, this.parseBurstData);
 
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         this.channel.deviceProfile = this; // Attach channel to device profile
@@ -1271,14 +1274,18 @@ DeviceProfile_ANTFS.prototype = {
     // This can be verified by looking at the code for emit in REPL console : console.log((new (require('events').EventEmitter)).emit.toString()) ->
     // event handler is called using handler.call(this=ANT Instance,...)
     broadCastDataParser: function (data) {
+       // Function context -  console.log(this);
         var beaconID = data[4], channelNr = data[3],
-            beacon, self = this.channelConfiguration[channelNr],
+            beacon, self = this,
             retryLINK = 0, currentCommand;
         // Check for valid beacon ID 0x43 , p. 45 ANT-FS Technical Spec.
 
-        // Important !
+      
         if (channelNr !== self.number) // Only handle channel broadcast for this particular channel (FILTER OUT OTHER CHANNELS)
+        {
+            console.error(Date.now() + " Received broadcast data for channel ", channelNr, " intended for channel ", self.number);
             return;
+        }
 
         if (typeof self.deviceProfile.DONT_CONNECT !== "undefined")  // Prevent re-connection for 10 seconds after a disconnect command is sent to the device
             return;
