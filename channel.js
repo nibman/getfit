@@ -12,6 +12,10 @@ function Channel(channelNr, channelType, networkNr, networkKey, startupDirectory
 
 util.inherits(Channel, events.EventEmitter);
 
+Channel.prototype.EVENT = {
+    CHANNEL_RESPONSE_EVENT : "channelResponseEvent"
+},
+
 Channel.prototype.CHANNEL_TYPE = {
     // Bidirectional
     0x00: "Bidirectional Slave Channel",
@@ -65,7 +69,7 @@ Channel.prototype.setChannelSearchTimeout = function (ucSearchTimeout) {
 
     switch (ucSearchTimeout) {
         case 0:
-            friendlyFormat = "Setting search timeout for channel " + this.number + " to " + ucSearchTimeout + " = Disable high priority searcg mode";
+            friendlyFormat = "Setting search timeout for channel " + this.number + " to " + ucSearchTimeout + " = Disable high priority search mode";
             break;
         case 255:
             friendlyFormat = "Setting search timeout for channel " + this.number + " to " + ucSearchTimeout + " = Infinite search";

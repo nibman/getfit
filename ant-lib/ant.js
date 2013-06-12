@@ -84,7 +84,11 @@ ANT.prototype.EVENT = {
 
     // Data
     BROADCAST: 'broadcast',
-    BURST: 'burst'
+    BURST: 'burst',
+
+    CHANNEL_RESPONSE_EVENT : 'channelResponseEvent',
+
+
 
 };
 
@@ -625,7 +629,9 @@ ANT.prototype.parse_response = function (data) {
 
         case ANT.prototype.ANT_MESSAGE.channel_response.id:
 
-            msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " + antInstance.parseChannelResponse(data);
+            var channelResponseMessage = antInstance.parseChannelResponse(data);
+
+            msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " + channelResponseMessage;
             channelNr = data[3];
 
             // Handle retry of acknowledged data
@@ -663,7 +669,10 @@ ANT.prototype.parse_response = function (data) {
 
             // Call channel event/response-handler for each channel
 
-            antInstance.channelConfiguration[channelNr].channelResponseEvent(data);
+           // OLD-way of calling callback antInstance.channelConfiguration[channelNr].channelResponseEvent(data);
+
+            antInstance.channelConfiguration[channelNr].emit(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, data);
+
 
             break;
 

@@ -685,6 +685,9 @@ DeviceProfile_ANTFS.prototype = {
 
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
+        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
+        
+
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         this.channel.deviceProfile = this; // Attach channel to device profile
 
