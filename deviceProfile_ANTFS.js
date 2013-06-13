@@ -30,12 +30,12 @@ function DeviceProfile_ANTFS(nodeInstance) {
                 console.log("New root directory created at " + DeviceProfile_ANTFS.prototype.ROOT_DIR);
             });
         } else
-            console.log("Root directory ", DeviceProfile_ANTFS.prototype.ROOT_DIR);
+            console.log(Date.now()+ " Root directory ", DeviceProfile_ANTFS.prototype.ROOT_DIR);
     });
 
 }
 
-DeviceProfile_ANTFS.protype = DeviceProfile.prototype;  // Inherit properties/methods
+DeviceProfile_ANTFS.prototype = DeviceProfile.prototype;  // Inherit properties/methods
 
 DeviceProfile_ANTFS.constructor = DeviceProfile_ANTFS;  // Update constructor
 
@@ -682,14 +682,14 @@ DeviceProfile_ANTFS.prototype = {
         this.channel.setChannelFrequency(ANT.prototype.ANTFS_FREQUENCY);
         this.channel.setChannelSearchWaveform(DeviceProfile_ANTFS.prototype.SEARCH_WAVEFORM);
 
+        // Functions available as callbacks
         this.channel.broadCastDataParser = this.broadCastDataParser || DeviceProfile.prototype.broadCastDataParser;
         this.channel.parseBurstData = this.parseBurstData || DeviceProfile.prototype.parseBurstData; // Called on a complete aggregation of burst packets
-
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
-        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channelResponseEvent);
-        this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.broadCastDataParser);
-        this.channel.addListener(Channel.prototype.EVENT.BURST, this.parseBurstData);
+        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
+        this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
+        this.channel.addListener(Channel.prototype.EVENT.BURST, this.channel.parseBurstData);
 
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         this.channel.deviceProfile = this; // Attach channel to device profile
@@ -714,17 +714,18 @@ DeviceProfile_ANTFS.prototype = {
     parseClientBeacon: function (data, onlyDataPayload) {
 
         // if onlyDataPayload === true, SYNC MSG. LENGTH MSG ID CHANNEL NR is stripped off beacon -> used when assembling burst transfer that contain a beacon in the first packet
-        var substract; // Used to get the correct index in the data
+        var substractIndex; // Used to get the adjust index in the data
+
         if (typeof onlyDataPayload === "undefined")
-            substract = 0;
+            substractIndex = 0;
         else if (onlyDataPayload)
-            substract = 4;
+            substractIndex = 4;
 
         var
             beaconInfo = {
-                status1: data[5 - substract],
-                status2: data[6 - substract],
-                authenticationType: data[7 - substract],
+                status1: data[5 - substractIndex],
+                status2: data[6 - substractIndex],
+                authenticationType: data[7 - substractIndex],
             };
 
         beaconInfo.dataAvailable = beaconInfo.status1 & 0x20 ? true : false; // Bit 5
@@ -735,11 +736,11 @@ DeviceProfile_ANTFS.prototype = {
         beaconInfo.clientDeviceState = beaconInfo.status2 & 0x0F; // Bit 3-0 (0100-1111 reserved), bit 7-4 reserved
 
         if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.AUTHENTICATION_LAYER || beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.TRANSPORT_LAYER || beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.BUSY) {
-            beaconInfo.hostSerialNumber = data.readUInt32LE(8 - substract);
+            beaconInfo.hostSerialNumber = data.readUInt32LE(8 - substractIndex);
         }
         else if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
-            beaconInfo.deviceType = data.readUInt16LE(8 - substract);
-            beaconInfo.manufacturerID = data.readUInt16LE(10 - substract);
+            beaconInfo.deviceType = data.readUInt16LE(8 - substractIndex);
+            beaconInfo.manufacturerID = data.readUInt16LE(10 - substractIndex);
         }
 
         function parseStatus1() {
@@ -1153,7 +1154,9 @@ DeviceProfile_ANTFS.prototype = {
                 },
            function success() {
                self.deviceProfile.request.state = DeviceProfile_ANTFS.prototype.REQUEST_STATE.SENT;
-               console.log(Date.now() + " Sent burst transfer with download request dataIndex: %d dataOffset %d CRC seed %d", dataIndex, dataOffset, CRCSeed);
+               //http://stackoverflow.com/questions/7695450/how-to-program-hex2bin-in-javascript
+               function pad(s, z) { s = "" + s; return s.length < z ? pad("0" + s, z) : s };
+               console.log(Date.now() + " Sent burst transfer with download request dataIndex: %d dataOffset %d CRC-16 seed %s", dataIndex, dataOffset, pad(CRCSeed.toString(2),16));
            }, "DownloadRequest index: " + dataIndex + " data offset: " + dataOffset + " initial request: " + initialRequest + "CRC seed: " + CRCSeed + "max. block size: " + maximumBlockSize);
         }
 

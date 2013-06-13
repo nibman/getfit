@@ -22,6 +22,7 @@ function ANT(idVendor, idProduct, nodeInstance) {
     this.idVendor = idVendor;
     this.idProduct = idProduct;
 
+
     this.nodeInstance = nodeInstance;
 
     this.retryQueue = {}; // Queue of packets that are sent as acknowledged using the stop-and wait ARQ-paradigm, initialized when parsing capabilities (number of ANT channels of device) -> a retry queue for each channel
@@ -382,18 +383,18 @@ ANT.prototype.parseChannelStatus = function (data) {
     channelStatus.channelStateFriendly = ANT.prototype.CHANNEL_STATUS[channelStatus.channelState];
 
     channelStatus.toString = function () {
-        return "Channel " + channelStatus.channelNumber + " type " + Channel.prototype.CHANNEL_TYPE[channelStatus.channelType] + " (" + channelStatus.channelType + " ) network " + channelStatus.networkNumber + " " + channelStatus.channelStateFriendly;
+        return "Channel status " + channelStatus.channelNumber + " type " + Channel.prototype.CHANNEL_TYPE[channelStatus.channelType] + " (" + channelStatus.channelType + " ) network " + channelStatus.networkNumber + " " + channelStatus.channelStateFriendly;
     };
 
     // Update channel configuration
     if (typeof this.channelConfiguration[channelStatus.channelNumber] === "undefined") {
-        this.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Creating new channel configuration for channel to hold channel status for channel " + channelStatus.channelNumber);
+        //this.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Creating new channel configuration for channel to hold channel status for channel " + channelStatus.channelNumber);
         this.channelConfiguration[channelStatus.channelNumber] = { number: channelStatus.channelNumber };
     }
 
     this.channelConfiguration[channelStatus.channelNumber].channelStatus = channelStatus;
 
-    this.emit(ANT.prototype.EVENT.LOG_MESSAGE, channelStatus.toString());
+    //this.emit(ANT.prototype.EVENT.LOG_MESSAGE, channelStatus.toString());
 
     return channelStatus;
 };
@@ -1174,7 +1175,7 @@ ANT.prototype.releaseInterfaceCloseDevice = function () {
                              self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Could not close channel "+ err);
                          },
                              function success() {
-                                 self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Channel " + channelNrSeed + " CLOSED.");
+                                 self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Channel " + channelNrSeed + " CLOSED.");
                                  reIterate();
                              });
              else
@@ -1291,7 +1292,9 @@ ANT.prototype.init = function (errorCallback, callback) {
         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Could not find USB ANT device vendor id:" + self.idVendor + " product id.:" + self.idProduct);
         errorCallback();
     } else {
-        //console.log("Found device  on bus " + self.device.busNumber + " address " + self.device.deviceAddress + ", max packet size endpoint 0 for control: " + self.device.deviceDescriptor.bMaxPacketSize0 + " bytes, default transfer (non-stream) timeout ms.: " + self.device.timeout + ", packet size for endpoints in/out 64 bytes");
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "ANT device found vendor 0x"+self.idVendor.toString(16)+" product 0x"+self.idProduct.toString(16)+ " on bus " + self.device.busNumber + " address " + self.device.deviceAddress);
+        
+        //+ ", max packet size endpoint 0/control: " + self.device.deviceDescriptor.bMaxPacketSize0 + " bytes, default transfer timeout ms.: " + self.device.timeout + ", packet size endpoints in/out 64 bytes");
 
         //console.log("Opening interface on device GARMIN USB2 ANT+ wireless/nRF24AP2 (Dynastream Innovations Inc.)");
         //console.log("Vendor id: " + self.idVendor + " Product id: " + self.idProduct);
@@ -1568,7 +1571,7 @@ ANT.prototype.open = function (channelConfNr, errorCallback, successCallback) {
     //console.log("Opening channel "+ucChannel);
     var open_channel_msg, self = this;
     var channel = this.channelConfiguration[channelConfNr];
-    self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Opening channel " + channel.number);
+    //self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Opening channel " + channel.number);
     open_channel_msg = this.create_message(this.ANT_MESSAGE.open_channel, new Buffer([channel.number]));
 
     this.sendAndVerifyResponseNoError(open_channel_msg, self.ANT_MESSAGE.open_channel.id, errorCallback, successCallback);
