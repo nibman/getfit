@@ -129,13 +129,18 @@ GetFIT.prototype = {
 
     WEBSOCKET_HOST: 'localhost',
     WEBSOCKET_PORT: 8093,
+
+    getWebSocketServer : function ()
+    {
+        return self.wss;
+    },
     
     // Broadcast data to all clients
-    broadCast:  function (data) {
+    broadCastOnWebSocket:  function (data) {
          var self = this;
 
          if (typeof self.wss === "undefined") {
-             console.warn("Cannot broadcast data, no websocket server available");
+             console.warn(Date.now()+" WEBSOCKET: no websocket server available on "+GetFIT.prototype.WEBSOCKET_HOST+":"+GetFIT.prototype.WEBSOCKET_PORT," broadcast failed ", data);
              return;
          }
 
@@ -191,7 +196,7 @@ GetFIT.prototype = {
 
         // Channel configurations indexed by channel nr.
 
-        //self.ANT.setChannelConfiguration(0, self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT, 0, 0, 0, ANT.prototype.INFINITE_SEARCH));
+        self.ANT.setChannelConfiguration(0, self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT, 0, 0, 0, ANT.prototype.INFINITE_SEARCH));
         self.ANT.setChannelConfiguration(1, self.deviceProfile_ANTFS.getSlaveChannelConfiguration(Network.prototype.ANT_FS, 1, 0, 0, 0, GetFIT.prototype.STARTUP_DIRECTORY));
         //self.ANT.setChannelConfiguration(2,self.deviceProfile_SDM.getSlaveChannelConfiguration(Network.prototype.ANT, 2, 0, 0, ANT.prototype.INFINITE_SEARCH));
         //self.ANT.setChannelConfiguration(3,self.deviceProfile_SPDCAD.getSlaveChannelConfiguration(Network.prototype.ANT, 3, 0, 0, ANT.prototype.INFINITE_SEARCH));
@@ -199,7 +204,7 @@ GetFIT.prototype = {
         // Lesson : ANT-FS and HRM on different network due to different keys
         // Seems like : Cannot simultaneously listen to broadcasts from ANT-FS =  2450 MHz and HRM/Bike spd/Stride sensor = 2457 Mhz, but with different msg. periode
 
-        //self.ANT.activateChannelConfiguration(0, function () { console.log("Could not configure device profile HRM"); }, function () {
+        self.ANT.activateChannelConfiguration(0, function () { console.log("Could not configure device profile HRM"); }, function () {
         //    console.log("Configuration of device profile HRM channel OK");
             self.ANT.activateChannelConfiguration(1, function () { console.log("Could not configure device profile ANT-FS"); }, function () {
         //        console.log("Configuration of device profile ANT-FS OK");
@@ -207,12 +212,12 @@ GetFIT.prototype = {
                     //console.log("Configuration of device profile SDM OK");
                     //self.ANT.activateChannelConfiguration(2, function () { console.log("Could not configure device profile SDM"); }, function () {
                         //console.log("Configuration of device profile SDM OK");
-                        //self.ANT.open(0, function () { console.log("Could not open channel for HRM"); }, function () {
+                        self.ANT.open(0, function () { console.log("Could not open channel for HRM"); }, function () {
                         //    console.log("Open channel for HRM");
                         //self.ANT.open(2, function error() { console.log("Could not open channel for SDM"); }, function success() {
                         //     console.log(Date.now()+ " Open channel for SDM");
                         //console.log(self.ANT.channelConfiguration);
-                        self.ANT.open(1, function () { console.log("Could not open channel for ANT-FS"); }, function () {
+                        //self.ANT.open(1, function () { console.log("Could not open channel for ANT-FS"); }, function () {
                             //console.log(Date.now() + " ANT-FS channel OPEN");
                             self.ANT.listen.call(self.ANT, function transferCancelCB() {
                                 self.ANT.iterateChannelStatus(0, true, function clean() {
@@ -227,7 +232,7 @@ GetFIT.prototype = {
                     //});
         //        });
             });
-        //});
+        });
 
         
         //this.startWebSocketServer();

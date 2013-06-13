@@ -533,7 +533,7 @@ ANT.prototype.parse_response = function (data) {
 
             if (msgLength === 9) {
 
-                msgStr += "BURST CHANNEL " + channelNr + " SEQUENCE NR " + sequenceNr;
+                msgStr += "BURST on CHANNEL " + channelNr + " SEQUENCE NR " + sequenceNr;
                 if (sequenceNr & 0x04) // last packet
                     msgStr += " LAST";
 
@@ -583,6 +583,7 @@ ANT.prototype.parse_response = function (data) {
             break;
 
         case ANT.prototype.ANT_MESSAGE.broadcast_data.id:
+
             msgStr += ANT.prototype.ANT_MESSAGE.broadcast_data.friendly + " ";
 
             channelNr = data[3];

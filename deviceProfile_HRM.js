@@ -9,7 +9,7 @@ function DeviceProfile_HRM(nodeInstance) {
 
 }
 
-DeviceProfile_HRM.protype = DeviceProfile.prototype;  // Inherit properties/methods
+DeviceProfile_HRM.prototype = DeviceProfile.prototype;  // Inherit properties/methods
 
 DeviceProfile_HRM.constructor = DeviceProfile_HRM;  // Update constructor
 
@@ -38,6 +38,9 @@ DeviceProfile_HRM.prototype = {
 
         this.channel = channel; // Attach channel to device profile
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
+
+        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
+        this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
 
         return channel;
     },
@@ -78,7 +81,6 @@ DeviceProfile_HRM.prototype = {
 
                 page.previousHeartBeatEventTime = data.readUInt16LE(startOfPageIndex + 2);
 
-
                 var rollOver = (page.previousHeartBeatEventTime > page.heartBeatEventTime) ? true : false;
 
                 if (rollOver)
@@ -90,6 +92,7 @@ DeviceProfile_HRM.prototype = {
                     this.previousHeartBeatEventTime = page.heartBeatEventTime;
                     var msg = "HR " + page.computedHeartRate + " heart beat count " + page.heartBeatCount + " RR " + page.RRInterval;
                     console.log(msg);
+                    this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
 
                     if (this.timeout) {
@@ -110,6 +113,7 @@ DeviceProfile_HRM.prototype = {
                 if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {
                     this.previousHeartBeatEventTime = page.heartBeatEventTime;
                     console.log("Manufacturer " + page.manufacturerID + " serial number : " + page.serialNumber);
+                    this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                 }
 
                 break;
@@ -123,6 +127,7 @@ DeviceProfile_HRM.prototype = {
                 if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {
                     this.previousHeartBeatEventTime = page.heartBeatEventTime;
                     console.log("HW version " + page.hardwareVersion + " SW version " + page.softwareVersion + " Model " + page.modelNumber);
+                    this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                 }
 
                 break;
@@ -133,6 +138,7 @@ DeviceProfile_HRM.prototype = {
                 if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {
                     this.previousHeartBeatEventTime = page.heartBeatEventTime;
                     console.log("Cumulative operating time (s) " + page.cumulativeOperatingTime + " hours: " + page.cumulativeOperatingTime / 3600);
+                    this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                 }
 
                 break;
@@ -146,7 +152,7 @@ DeviceProfile_HRM.prototype = {
                 break;
         }
 
-        this.nodeInstance.broadCast(JSON.stringify(page)); // Send to all connected clients
+        
     }
 };
 
