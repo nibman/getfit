@@ -12,7 +12,7 @@ DeviceProfile.prototype = {
     },
 
     channelResponseEvent: function (data) {
-        //console.log("Channel response/event : ", data);
+        console.log("Channel response/event : ", data);
         //return "Not defined";
     },
 

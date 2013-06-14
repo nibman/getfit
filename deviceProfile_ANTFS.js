@@ -284,7 +284,7 @@ DeviceProfile_ANTFS.prototype = {
             console.error("Expected beacon id. (0x43) in the first packet of burst payload", data);
         else {
             // Packet 1 BEACON
-            beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data, true);
+            beacon = this.nodeInstance.deviceProfile_ANTFS.parseClientBeacon.call(this,data, true);
 
             if (beacon.hostSerialNumber !== this.nodeInstance.ANT.serialNumber) {
                 console.warn("Beacon in bulk transfer header/packet 1, was for ", beacon.hostSerialNumber, ", our device serial number is ", this.nodeInstance.ANT.serialNumber, "beacon packet ", data);
@@ -672,13 +672,14 @@ DeviceProfile_ANTFS.prototype = {
         return { buffer: payload, friendly: "ANT-FS ERASE Command" };
     },
 
+                              
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, searchTimeout, startupDirectory) {
         // Setup channel parameters for ANT-FS
         this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANTFS, startupDirectory);
 
         this.channel.setChannelId(deviceNr, deviceType, transmissionType, false);
         this.channel.setChannelPeriod(DeviceProfile_ANTFS.prototype.CHANNEL_PERIOD);
-        this.channel.setChannelSearchTimeout(ANT.prototype.INFINITE_SEARCH);
+        this.channel.setChannelSearchTimeout(searchTimeout); 
         this.channel.setChannelFrequency(ANT.prototype.ANTFS_FREQUENCY);
         this.channel.setChannelSearchWaveform(DeviceProfile_ANTFS.prototype.SEARCH_WAVEFORM);
 
@@ -714,7 +715,7 @@ DeviceProfile_ANTFS.prototype = {
     parseClientBeacon: function (data, onlyDataPayload) {
 
         // if onlyDataPayload === true, SYNC MSG. LENGTH MSG ID CHANNEL NR is stripped off beacon -> used when assembling burst transfer that contain a beacon in the first packet
-        var substractIndex; // Used to get the adjust index in the data
+        var substractIndex, self = this; // Used to get the adjust index in the data
 
         if (typeof onlyDataPayload === "undefined")
             substractIndex = 0;
@@ -770,13 +771,25 @@ DeviceProfile_ANTFS.prototype = {
         }
 
         beaconInfo.toString = function () {
+            var str;
 
-            if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER)
-                return parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Device type " + beaconInfo.deviceType + " Manuf. ID " + beaconInfo.manufacturerID + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
-            else
-                return parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Host SN. " + beaconInfo.hostSerialNumber + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
+            if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
+                str = parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Device type " + beaconInfo.deviceType + " Manuf. ID " + beaconInfo.manufacturerID + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
+            }
+            else 
+                str =  parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Host SN. " + beaconInfo.hostSerialNumber + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
+
+
+            if (typeof self.channelID !== "undefined")
+                str += " " + self.channelID.toString();
+
+            if (typeof self.RX_Timestamp !== "undefined")
+                str += " RX timestamp " + self.RX_Timestamp;
+
+            return str;
         };
 
+        
         return beaconInfo;
     },
 
@@ -1328,7 +1341,7 @@ DeviceProfile_ANTFS.prototype = {
 
             // If we not have updated channel id, then get it
 
-            beacon = self.nodeInstance.deviceProfile_ANTFS.parseClientBeacon(data);
+            beacon = self.nodeInstance.deviceProfile_ANTFS.parseClientBeacon.call(self,data);
 
             self.deviceProfile.lastBeacon = { beacon: beacon, timestamp: Date.now() };
 

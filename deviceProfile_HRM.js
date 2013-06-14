@@ -20,6 +20,7 @@ DeviceProfile_HRM.prototype = {
     CHANNEL_PERIOD: 8070,
 
     // Override/"property shadowing"
+    //                                   Network.prototype.ANT,      0, 0, 0, Math.round(15/2.5)
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
         // ANT+ Managed Network Document – Heart Rate Monitor Device Profile  , p . 9  - 4 channel configuration
 
@@ -45,8 +46,34 @@ DeviceProfile_HRM.prototype = {
         return channel;
     },
 
+    channelResponseEvent : function (data)
+    {
+        var self = this, antInstance = this.nodeInstance.ANT, reOpeningTimeout = 5000;
+
+        if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_RX_SEARCH_TIMEOUT, data)) {
+            console.log(Date.now() + " Channel " + self.number + " search timed out.");
+            //setTimeout(function handler() {
+            //    antInstance.open(self.number, function errorCB(error) { console.log(Date.now() + " Failed to reopen channel " + self.number, error); },
+            //        function successCB() { });
+            //}, reOpeningTimeout);
+        }
+
+        else if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_CHANNEL_CLOSED, data)) {
+           // console.log(Date.now() + " Channel " + self.number + " is closed.");
+           
+            //if (antInstance.inTransfer) {
+            //    console.log("Cancelling transfer");
+            //    antInstance.inTransfer.cancel(); // Cancel listener on inendpoint
+            //}
+            //setTimeout(function handler() {
+            //    antInstance.open(self.number, function errorCB(error) { console.log(Date.now() + " Failed to reopen channel " + self.number, error); },
+            //        function successCB() { });
+            //}, reOpeningTimeout);
+        }
+    },
+
     lostBroadCastData: function () {
-        console.log("Lost broadcast data from HRM");
+        console.log(Date.now()+" Lost broadcast data from HRM");
     },
 
     broadCastDataParser: function (data) {
