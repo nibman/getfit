@@ -552,7 +552,8 @@ ANT.prototype.parse_extended_RSSI = function (channelNr,data,startIndex) {
 ANT.prototype.parse_extended_message = function (channelNr,data) {
     var msgLength = data[1], msgFlag,
         self = this,
-        relativeIndex = 9;
+        relativeIndex = 9,
+        previous_RX_Timestamp;
 
     if (msgLength <= relativeIndex) {
         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " No extended message info. available");
@@ -575,8 +576,16 @@ ANT.prototype.parse_extended_message = function (channelNr,data) {
     }
 
     if (msgFlag & ANT.prototype.LIB_CONFIG.ENABLE_RX_TIMESTAMP) {
-       // console.log(data,relativeIndex);
+        // console.log(data,relativeIndex);
+        if (typeof this.channelConfiguration[channelNr].RX_Timestamp)
+            previous_RX_Timestamp = this.channelConfiguration[channelNr].RX_Timestamp;
+
         this.channelConfiguration[channelNr].RX_Timestamp = data.readUInt16LE(relativeIndex);
+        if (typeof previous_RX_Timestamp !== "undefined") {
+            this.channelConfiguration[channelNr].RX_Timestamp_Difference = this.channelConfiguration[channelNr].RX_Timestamp - previous_RX_Timestamp;
+            if (this.channelConfiguration[channelNr].RX_Timestamp_Difference < 0) // Roll over
+                this.channelConfiguration[channelNr].RX_Timestamp_Difference += 0xFFFF;
+        }
         //console.log("Timestamp", this.channelConfiguration[channelNr].RX_Timestamp);
     }
 };
@@ -671,7 +680,7 @@ ANT.prototype.parse_response = function (data) {
             else {
                 console.trace();
                 console.log("Data", data);
-                antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Cannot handle this message of "+msgLength+ " bytes ");
+                antInstance.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Cannot handle this message of "+msgLength+ " bytes. Expecting a message length of 9 for standard messages or greater for extended messages (channel ID/RSSI/RX timestamp)");
             }
 
             break;
@@ -838,41 +847,48 @@ ANT.prototype.parse_response = function (data) {
 
 };
 
-// Continuously listen on incoming traffic and send it to the general parser for further processing
+// Continuously listen on incoming packets from ANT engine and send it to the general parser for further processing
 ANT.prototype.listen = function (transferCancelledCallback) {
 
     var self = this, NO_TIMEOUT = 0, TIMEOUT = 30000;
 
     function retry() {
 
-         self.read(TIMEOUT, function error(err) {
+        var errorCB = function error(err) {
 
             if (err.errno === usb.LIBUSB_TRANSFER_TIMED_OUT) {
-                self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " No ANT data received in "+TIMEOUT+ " ms");
+                self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Timeout: No ANT data received in "+TIMEOUT+ " ms.");
                 process.nextTick(retry);
             }
-            else if (err.errno !== usb.LIBUSB_TRANSFER_CANCELLED) { 
-                self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Receive error in listen:"+ err);
-                process.nextTick(retry);
-            } else { // Transfer cancelled, may be aborted by pressing Ctrl-C in Node.js 
+            else if (err.errno === usb.LIBUSB_TRANSFER_CANCELLED) {
                 //console.log(error);
+                // Transfer cancelled, may be aborted by pressing Ctrl-C in Node.js 
                 if (typeof transferCancelledCallback === "function") {
                     self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Calling cancellation callback");
                     transferCancelledCallback();
                 }
                 else
                     self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "No transfer cancellation callback specified");
+               
+            } else { 
+                self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Receive error in listen:" + err);
+                process.nextTick(retry);
             }
 
-        }, function success(data) {
+        },
+
+        successCB = function success(data) {
             self.parse_response.call(self, data);
             process.nextTick(retry);
-        });
+        };
+
+       
+         self.read(TIMEOUT, errorCB , successCB);
     }
 
-    console.log(self.inTransfer);
+    // self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Listening for ANT data");
 
-    this.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Listening for ANT data");
+   // console.log(self.inTransfer);
 
     retry();
 

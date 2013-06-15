@@ -15,7 +15,7 @@ var
 
 function GetFIT() {
 
-    console.log("GetFIT version ", GetFIT.prototype.VERSION);
+    console.log("GetFIT version "+ GetFIT.prototype.VERSION, "node version",process.versions.node,"V8",process.versions.v8,"on "+process.platform+" "+process.arch);
 
     var self = this;
     self.commandQueue = [];
@@ -45,7 +45,7 @@ function GetFIT() {
         }),
         elementNr, rangeArr, rangeElementNr, indexArr = [] ;
 
-        console.log("Parsed", parsed);
+        //console.log("Parsed", parsed);
 
         for (elementNr = 0; elementNr < parsed.length; elementNr++)
             if (typeof parsed[elementNr] === 'object') // Process range
@@ -58,7 +58,7 @@ function GetFIT() {
             else if (typeof parsed[elementNr] === 'number')
                 indexArr.push(parsed[elementNr]);
 
-        console.log("Index arr",indexArr);
+        //console.log("Index arr",indexArr);
 
         return indexArr;
     }

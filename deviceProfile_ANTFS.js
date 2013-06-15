@@ -703,7 +703,11 @@ DeviceProfile_ANTFS.prototype = {
         var self = this, antInstance = this.nodeInstance.ANT;
         
         if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_RX_FAIL_GO_TO_SEARCH, data))
-            console.log(Date.now() + " Channel "+ self.number+" cannot track broadcast anymore, missed to many expected broadcasts from device");
+            console.log(Date.now() + " ANT-FS Channel " + self.number + " cannot track broadcast anymore, missed to many expected broadcasts from device");
+        else if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_RX_SEARCH_TIMEOUT, data))
+            console.log(Date.now() + " ANT-FS Channel " + self.number + " reached search timeout. Device did not send any ANT data in the search periode.");
+        else if (antInstance.isEvent(ANT.prototype.RESPONSE_EVENT_CODES.EVENT_CHANNEL_CLOSED, data))
+            console.log(Date.now() + " ANT-FS Channel "+ self.number+" closed.");
 
     },
 
@@ -771,7 +775,8 @@ DeviceProfile_ANTFS.prototype = {
         }
 
         beaconInfo.toString = function () {
-            var str;
+            var str,
+                INTERNAL_CLOCK_RATE = 32768; // 32.768 kHz internal clock, extended message info. RX_Timestamp rolls over each 2 seconds
 
             if (beaconInfo.clientDeviceState === DeviceProfile_ANTFS.prototype.STATE.LINK_LAYER) {
                 str = parseStatus1() + " " + DeviceProfile_ANTFS.prototype.STATE[beaconInfo.status2 & 0x0F] + " Device type " + beaconInfo.deviceType + " Manuf. ID " + beaconInfo.manufacturerID + " " + DeviceProfile_ANTFS.prototype.AUTHENTICATION_TYPE[beaconInfo.authenticationType];
@@ -784,7 +789,10 @@ DeviceProfile_ANTFS.prototype = {
                 str += " " + self.channelID.toString();
 
             if (typeof self.RX_Timestamp !== "undefined")
-                str += " RX timestamp " + self.RX_Timestamp;
+                str += " RX timestamp " + self.RX_Timestamp + " (counter/32.768kHz clock) = " + (self.RX_Timestamp / (INTERNAL_CLOCK_RATE/1000)).toFixed(1) + " ms";
+
+            if (typeof self.RX_Timestamp_Difference !== "undefined")
+                str += " previous RX timestamp difference " + (self.RX_Timestamp_Difference / (INTERNAL_CLOCK_RATE/1000)).toFixed(1) + " ms";
 
             return str;
         };
