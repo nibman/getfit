@@ -48,20 +48,26 @@ Channel.prototype.CHANNEL_TYPE = {
     shared_bidirectional_transmit_channel: 0x30
 };
 
+Channel.prototype.CHANNELID = {
+    DEVICE_NUMBER_WILDCARD: 0x00,
+    DEVICE_TYPE_WILDCARD: 0x00,
+    TRANSMISSION_TYPE_WILDCARD : 0x00
+};
+
 Channel.prototype.setChannelId = function (usDeviceNum, ucDeviceType, ucTransmissionType, pairing) {
     if (typeof usDeviceNum === "undefined" || typeof ucDeviceType === "undefined" || typeof ucTransmissionType === "undefined") {
         console.trace();
         console.error("Undefined parameters ", usDeviceNum, ucDeviceType, ucTransmissionType);
     }
-    var channelID = {};
+    this.channelID = {};
 
-    channelID.deviceNumber = usDeviceNum; // 16-bit
-    channelID.deviceType = ucDeviceType; // i.e HRM = 0x78 = 120 dec. 8-bit ANTWare 0 - 127, 0 = wildcard, 7-bit pairing
+    this.channelID.deviceNumber = usDeviceNum; // 16-bit
+    this.channelID.deviceType = ucDeviceType; // i.e HRM = 0x78 = 120 dec. 8-bit ANTWare 0 - 127, 0 = wildcard, 7-bit pairing
     if (pairing)
-        channelID.deviceType = ucDeviceType | 0x80; // Set bit 7 high;
-    channelID.transmissionType = ucTransmissionType;
+        this.channelID.deviceType = ucDeviceType | 0x80; // Set bit 7 high;
+    this.channelID.transmissionType = ucTransmissionType;
 
-    this.channelID = channelID;
+  //  return this.channelID;
 },
 
 Channel.prototype.setChannelPeriod = function (usMessagePeriod) {
