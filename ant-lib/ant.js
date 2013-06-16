@@ -181,8 +181,11 @@ ANT.prototype.ANT_MESSAGE = {
     0x43: "Channel period",
     set_channel_messaging_period: { id: 0x43, friendly: "Set Channel Messaging Period" },
 
-    0x44: "Search timeout",
-    set_channel_search_timeout: { id: 0x44, friendly: "Set Channel Search Timeout" },
+    0x63: "Search low priority timeout",
+    set_low_priority_channel_search_timeout: { id: 0x63, friendly: "Set low priority Channel Search Timeout" },
+
+    0x44: "Search high priority search timeout",
+    set_channel_search_timeout: { id: 0x44, friendly: "Set High priority Channel Search Timeout" },
 
     0x45: "Channel RF frequency",
     set_channel_RFFreq: { id: 0x45, friendly: "Set Channel RF Frequency" },
@@ -347,7 +350,8 @@ ANT.prototype.parseTransmissionType = function (transmissionType) {
         default: msg += " | ?"; break;
     }
 
-    msg += " | 20-bit device nr.: " + ((transmissionType & 0xF0) >> 4);
+    if ((transmissionType & 0xF0) >> 4)
+        msg += " | 20-bit device nr";
 
     return msg;
 };
@@ -1638,11 +1642,11 @@ ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCall
 
     var buf = new Buffer(5);
     buf[0] = channel.number;
-    buf.writeUInt16LE(channel.deviceNumber, 1); // If slave 0 matches any device number / dev id.
+    buf.writeUInt16LE(channel.channelID.deviceNumber, 1); // If slave 0 matches any device number / dev id.
     // Seems like its not used at least for slave?  buf[3] = channel.deviceType & 0x80; // If bit 7 = 1 -> master = request pairing, slave = find pairing transmitter -> (pairing bit)
     // Pairing bit-set in Channel object, if pairing requested deviceType = deviceType | 0x80;
-    buf[3] = channel.deviceType;
-    buf[4] = channel.transmissionType; // Can be set to zero (wildcard) on a slave device, spec. p. 18 ANT Message Protocol and Usage, rev 5.0
+    buf[3] = channel.channelID.deviceType;
+    buf[4] = channel.channelID.transmissionType; // Can be set to zero (wildcard) on a slave device, spec. p. 18 ANT Message Protocol and Usage, rev 5.0
 
     set_channel_id_msg = this.create_message(this.ANT_MESSAGE.set_channel_id, buf);
 
@@ -1667,9 +1671,31 @@ ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, success
 
 };
 
+// Low priority search mode
+// Spec. p. 72 : "...a low priority search will not interrupt other open channels on the device while searching",
+// "If the low priority search times out, the module will switch to high priority mode"
+ANT.prototype.setLowPriorityChannelSearchTimeout = function (channelConfNr, ucSearchTimeout, errorCallback, successCallback) {
+
+    // Timeout in sec. : ucSearchTimeout * 2.5 s, 255 = infinite, 0 = disable low priority search
+    var channel_low_priority_search_timeout_msg, 
+        self = this,
+        channel = this.channelConfiguration[channelConfNr];
+
+    channel.lowPrioritySearchTimeout = ucSearchTimeout;
+
+    //console.log("Set channel low priority search timeout channel " + channel.number + " timeout " + channel.lowPrioritysearchTimeout);
+    var buf = new Buffer([channel.number, channel.lowPrioritySearchTimeout]);
+
+    channel_low_priority_search_timeout_msg = this.create_message(ANT.prototype.ANT_MESSAGE.set_low_priority_channel_search_timeout, buf);
+
+    this.sendAndVerifyResponseNoError(channel_low_priority_search_timeout_msg, ANT.prototype.ANT_MESSAGE.set_low_priority_channel_search_timeout.id, errorCallback, successCallback);
+
+};
+
+// High priority search mode
 ANT.prototype.setChannelSearchTimeout = function (channelConfNr, errorCallback, successCallback) {
 
-    // Each count in ucSearchTimeout = 2.5 s, 255 = infinite, 0 = disable high priority search mode
+    // Each count in ucSearchTimeout = 2.5 s, 255 = infinite, 0 = disable high priority search mode (default search timeout is 25 seconds)
     var channel_search_timeout_msg, self = this;
     var channel = this.channelConfiguration[channelConfNr];
 

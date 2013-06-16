@@ -789,7 +789,7 @@ DeviceProfile_ANTFS.prototype = {
                 str += " " + self.channelID.toString();
 
             if (typeof self.RX_Timestamp !== "undefined")
-                str += " RX timestamp " + self.RX_Timestamp + " (counter/32.768kHz clock) = " + (self.RX_Timestamp / (INTERNAL_CLOCK_RATE/1000)).toFixed(1) + " ms";
+                str += " RX timestamp " + self.RX_Timestamp + " = " + (self.RX_Timestamp / (INTERNAL_CLOCK_RATE/1000)).toFixed(1) + " ms";
 
             if (typeof self.RX_Timestamp_Difference !== "undefined")
                 str += " previous RX timestamp difference " + (self.RX_Timestamp_Difference / (INTERNAL_CLOCK_RATE/1000)).toFixed(1) + " ms";

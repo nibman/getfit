@@ -24,32 +24,44 @@ Channel.prototype.EVENT = {
 },
 
 Channel.prototype.CHANNEL_TYPE = {
+
     // Bidirectional
     0x00: "Bidirectional Slave Channel",
     receive_channel: 0x00, // slave
+
     0x10: "Bidirectional Master Channel",
     transmit_channel: 0x10, // master
+
     // Unidirectional
     0x50: "Master Transmit Only Channel (legacy)",
     transmit_only_channel: 0x50,
+
     0x40: "Slave Receive Only Channel (diagnostic)",
     receive_only_channel: 0x40,
+
     // Shared channels
+
     0x20: "Shared bidirectional Slave channel",
     shared_bidirectional_receive_channel: 0x20,
+
     0x30: "Shared bidirectional Master channel",
     shared_bidirectional_transmit_channel: 0x30
 };
 
 Channel.prototype.setChannelId = function (usDeviceNum, ucDeviceType, ucTransmissionType, pairing) {
-    if (typeof usDeviceNum === "undefined" || typeof ucDeviceType === "undefined" || typeof ucTransmissionType === "undefined")
+    if (typeof usDeviceNum === "undefined" || typeof ucDeviceType === "undefined" || typeof ucTransmissionType === "undefined") {
+        console.trace();
         console.error("Undefined parameters ", usDeviceNum, ucDeviceType, ucTransmissionType);
+    }
+    var channelID = {};
 
-    this.deviceNumber = usDeviceNum; // 16-bit
-    this.deviceType = ucDeviceType; // i.e HRM = 0x78 = 120 dec. 8-bit ANTWare 0 - 127, 0 = wildcard, 7-bit pairing
+    channelID.deviceNumber = usDeviceNum; // 16-bit
+    channelID.deviceType = ucDeviceType; // i.e HRM = 0x78 = 120 dec. 8-bit ANTWare 0 - 127, 0 = wildcard, 7-bit pairing
     if (pairing)
-        this.deviceType = ucDeviceType | 0x80; // Set bit 7 high;
-    this.transmissionType = ucTransmissionType;
+        channelID.deviceType = ucDeviceType | 0x80; // Set bit 7 high;
+    channelID.transmissionType = ucTransmissionType;
+
+    this.channelID = channelID;
 },
 
 Channel.prototype.setChannelPeriod = function (usMessagePeriod) {
