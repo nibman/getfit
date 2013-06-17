@@ -14,6 +14,8 @@ DeviceProfile_SDM.constructor = DeviceProfile_SDM;  // Update constructor
 
 DeviceProfile_SDM.prototype = {
 
+    NAME: 'SDM',
+
     DEVICE_TYPE: 0x7C,
 
     CHANNEL_PERIOD: 8134, // 4 hz
@@ -41,9 +43,16 @@ DeviceProfile_SDM.prototype = {
         this.channel = channel; // Attach channel to device profile
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
+        this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
+        this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
+
         //console.log(channel);
         return channel;
 
+    },
+
+    channelResponseEvent : function (data)
+    {
     },
 
     broadCastDataParser: function (data) {

@@ -15,6 +15,8 @@ DeviceProfile_HRM.constructor = DeviceProfile_HRM;  // Update constructor
 
 DeviceProfile_HRM.prototype = {
 
+    NAME : 'HRM',
+
     DEVICE_TYPE: 0x78,
 
     CHANNEL_PERIOD: 8070,

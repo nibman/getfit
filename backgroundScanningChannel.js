@@ -58,8 +58,21 @@ BackgroundScanningChannel.prototype = {
         //        transmissionType: 1,
         // TO DO : open channel for  this.channelID device profile
 
-        var deviceProfile_HRM,
+        var deviceProfile,
             self = this;
+
+        var openChannel = function (channelNr) {
+            self.nodeInstance.ANT.setChannelConfiguration(channelNr, deviceProfile.getSlaveChannelConfiguration(Network.prototype.ANT,
+                    channelNr, self.channelID.deviceNumber, self.channelID.transmissionType, ANT.prototype.SEARCH_TIMEOUT.INFINITE));
+            self.nodeInstance.ANT.activateChannelConfiguration(channelNr, function error(err) { console.log(Date.now(), "Could not activate channel configuration", err); },
+                function successCB(data) {
+                    self.nodeInstance.ANT.open(channelNr, function error(err) { console.log(Date.now(), "Could not open channel", self.channelID, err); },
+                            function success(data) {
+                                console.log(Date.now(), "Channel open for profile "+deviceProfile.NAME);
+                            }
+                            , true);
+                });
+        }
 
         switch (this.channelID.deviceTypeID) {
 
@@ -70,22 +83,17 @@ BackgroundScanningChannel.prototype = {
 
                 console.log(Date.now(), "Found HRM - heart rate monitor - device",this.channelID);
 
-                deviceProfile_HRM = new DeviceProfile_HRM(this.nodeInstance);
-                this.nodeInstance.ANT.setChannelConfiguration(1, deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT,
-                    1, self.channelID.deviceNumber, self.channelID.transmissionType, ANT.prototype.SEARCH_TIMEOUT.INFINITE));
-                    self.nodeInstance.ANT.activateChannelConfiguration(1, function error(err) { console.log(Date.now(), "Could not activate channel configuration for HRM", err); },
-                        function successCB(data) {
-                            self.nodeInstance.ANT.open(1, function error(err) { console.log(Date.now(), "Could not open channel for HRM device",self.channelID, err); },
-                                    function success(data) {
-                                        console.log(Date.now(), "Channel open for HRM");
-                                    }
-                                    ,true);
-                        });
+                deviceProfile = new DeviceProfile_HRM(this.nodeInstance);
+                openChannel(1);
 
                 break;
 
             case DeviceProfile_SDM.prototype.DEVICE_TYPE:
-                console.log(Date.now(),"Found SDM4 - foot pod - device");
+
+                console.log(Date.now(), "Found SDM4 - foot pod - device", this.channelID);
+                deviceProfile = new DeviceProfile_SDM(this.nodeInstance);
+                openChannel(2);
+
                 break;
 
             default:
