@@ -23,40 +23,43 @@ DeviceProfile_SDM.prototype = {
     ALTERNATIVE_CHANNEL_PERIOD: 16268,  // 2 Hz
 
     // Override/"property shadowing"
-    getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
+    getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout, lowPrioritySearchTimeout) {
 
-        var channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
+        this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
 
-        channel.setChannelId(deviceNr, DeviceProfile_SDM.prototype.DEVICE_TYPE, transmissionType, false);
+        this.channel.setChannelId(deviceNr, DeviceProfile_SDM.prototype.DEVICE_TYPE, transmissionType, false);
 
-        channel.setChannelPeriod(DeviceProfile_SDM.prototype.CHANNEL_PERIOD); // Ca. 4 messages pr. second
-        channel.setChannelSearchTimeout(searchTimeout);
+        this.channel.setChannelPeriod(DeviceProfile_SDM.prototype.CHANNEL_PERIOD); // Ca. 4 messages pr. second
+        this.channel.setChannelSearchTimeout(searchTimeout);
+        this.channel.setLowPrioritySearchTimeout(lowPrioritySearchTimeout);
 
-        channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
+        this.channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
 
-        channel.broadCastDataParser = this.broadCastDataParser || DeviceProfile.prototype.broadCastDataParser; // Called on received broadcast data
+        this.channel.broadCastDataParser = this.broadCastDataParser || DeviceProfile.prototype.broadCastDataParser; // Called on received broadcast data
 
-        channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
-        channel.deviceProfile = this; // Attach deviceprofile to channel
+        this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
+        this.channel.deviceProfile = this; // Attach deviceprofile to channel
 
 
-        this.channel = channel; // Attach channel to device profile
+        //this.channel = channel; // Attach channel to device profile
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
         this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
         this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
 
-        //console.log(channel);
-        return channel;
+        console.log(this.channel);
+
+        return this.channel;
 
     },
 
-    channelResponseEvent : function (data)
+    channelResponseEvent : function (data,channelResponseMessage)
     {
+       
     },
 
     broadCastDataParser: function (data) {
-        //console.log(Date.now() + " SDM broadcast data ", data);
+        console.log(Date.now() + " SDM broadcast data ", data);
         var receivedTimestamp = Date.now(),
           self = this,
            UNUSED = 0x00,

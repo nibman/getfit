@@ -62,15 +62,26 @@ BackgroundScanningChannel.prototype = {
             self = this;
 
         var openChannel = function (channelNr) {
+            // Math.round(25 / 2.5)
+            var searchTimeoutLP = 0x00,
+                searchTimeoutHP = 0x00; // Device is newly found, seems reasonable with a short timeout
+
+            // Observation : It seems like the channel is kept open regardless of timeouts, maybe its because the channelID was first found
+            // by the background search channel? Verified : closing background search channel will give the normal
+            // sequence of EVENT_RX_FAIL,EVENT_RX_FAIL_GO_TO_SEARCH,EVENT_RX_SEARCH_TIMEOUT,EVENT_CHANNEL_CLOSED
+
             self.nodeInstance.ANT.setChannelConfiguration(channelNr, deviceProfile.getSlaveChannelConfiguration(Network.prototype.ANT,
-                    channelNr, self.channelID.deviceNumber, self.channelID.transmissionType, ANT.prototype.SEARCH_TIMEOUT.INFINITE));
+                    channelNr, self.channelID.deviceNumber, self.channelID.transmissionType, searchTimeoutHP,searchTimeoutLP));
             self.nodeInstance.ANT.activateChannelConfiguration(channelNr, function error(err) { console.log(Date.now(), "Could not activate channel configuration", err); },
                 function successCB(data) {
-                    self.nodeInstance.ANT.open(channelNr, function error(err) { console.log(Date.now(), "Could not open channel", self.channelID, err); },
-                            function success(data) {
-                                console.log(Date.now(), "Channel open for profile "+deviceProfile.NAME);
-                            }
-                            , true);
+                    //self.nodeInstance.ANT.close(0, function error(err) { console.log(Date.now(), "Failed to close background search channel"); },
+                       // function successCB() {
+                            self.nodeInstance.ANT.open(channelNr, function error(err) { console.log(Date.now(), "Could not open channel", self.channelID, err); },
+                                    function success(data) {
+                                        console.log(Date.now(), "Channel open for profile " + deviceProfile.NAME);
+                                    }
+                                    , true);
+                      //  },true);
                 });
         }
 
@@ -79,7 +90,7 @@ BackgroundScanningChannel.prototype = {
             case DeviceProfile_HRM.prototype.DEVICE_TYPE:
 
                 // By convention when a master is found and a new channel is created/opened to handle broadcasts,
-                // the background channel search will not trigger anymore on this master
+                // the background channel search will not trigger anymore on this master. 
 
                 console.log(Date.now(), "Found HRM - heart rate monitor - device",this.channelID);
 
@@ -97,14 +108,14 @@ BackgroundScanningChannel.prototype = {
                 break;
 
             default:
-                console.log(Date.now() + "Not implemented support for device type " + this.channelID.deviceTypeID);
+                console.log(Date.now() + "Found ANT device type", this.channelID.deviceTypeID," device profile not implemented/supported");
                 break;
         }
         
     },
 
     channelResponseEvent: function (data) {
-        console.log(Date.now() + " Background scanning channel RESPONSE/EVENT : ", data);
+        //console.log(Date.now() + " Background scanning channel RESPONSE/EVENT : ", data);
     }
 };
 

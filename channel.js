@@ -66,6 +66,11 @@ Channel.prototype.CHANNELID = {
     TRANSMISSION_TYPE_WILDCARD : 0x00
 };
 
+Channel.prototype.isBackgroundSearchChannel = function ()
+{
+    return this.extendedAssignment & Channel.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE;
+}
+
 Channel.prototype.setExtendedAssignment = function (extendedAssignment) {
     var friendly = "";
     this.extendedAssignment = extendedAssignment;

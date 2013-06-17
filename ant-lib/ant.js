@@ -750,7 +750,7 @@ ANT.prototype.parse_response = function (data) {
 
             var channelResponseMessage = antInstance.parseChannelResponse(data);
 
-            console.log("DEBUG:", channelResponseMessage, data);
+            console.log(Date.now(),channelResponseMessage, data);
 
             msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " + channelResponseMessage;
             channelNr = data[3];
@@ -793,7 +793,7 @@ ANT.prototype.parse_response = function (data) {
            // OLD-way of calling callback antInstance.channelConfiguration[channelNr].channelResponseEvent(data);
 
            // console.log("Channel response/EVENT", channelNr, channelResponseMessage,antInstance.channelConfiguration[channelNr]);
-            antInstance.channelConfiguration[channelNr].emit(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, data);
+            antInstance.channelConfiguration[channelNr].emit(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, data, channelResponseMessage);
 
 
             break;
@@ -1684,6 +1684,11 @@ ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, success
 
     var set_channel_period_msg, rate, self = this;
     var channel = this.channelConfiguration[channelConfNr];
+   
+    var msg = "";
+
+    if (channel.isBackgroundSearchChannel())
+        msg = "(Background search channel)"
 
     //console.log("Set channel period for channel " + channel.number + " to " + channel.periodFriendly + " value: " + channel.period);
 
@@ -1696,7 +1701,8 @@ ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, success
 
         this.sendAndVerifyResponseNoError(set_channel_period_msg, self.ANT_MESSAGE.set_channel_messaging_period.id, errorCallback, successCallback);
     } else {
-        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Channel period not specified for this channel, skipping configuration");
+        
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Channel period not specified for channel "+channel.number+" "+msg);
         successCallback(); // Continue with configuration
 
     }
@@ -1785,7 +1791,7 @@ ANT.prototype.open = function (channelConfNr, errorCallback, successCallback, no
 };
 
 // Closing first gives a response no error, then an event channel closed
-ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
+ANT.prototype.close = function (channelConfNr, errorCallback, successCallback, noVerifyResponseNoError) {
     //console.log("Closing channel "+ucChannel);
     var close_channel_msg, self = this;
     var channel = this.channelConfiguration[channelConfNr];
@@ -1845,7 +1851,10 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback) {
                              });
             }
 
-            retryResponseNoError();
+            if (typeof noVerifyResponseNoError === "undefined")
+                retryResponseNoError();
+            else
+              successCallback();
         });
 };
 
