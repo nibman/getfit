@@ -1,12 +1,19 @@
 var fs = require('fs');
 
 function Network(nr, key, startupDirectory) {
-    var self = this;
+    var self = this, fName;
     this.number = nr;
     if (typeof key === "string") // Filename
-        this.key = this.getNetworkKey(key,startupDirectory+'\\'+key);
+    {
+        fName = startupDirectory+'\\'+key;
+        this.key = this.getNetworkKey(key,fName);
+    }
     else
         this.key = key;
+    if (fName)
+        console.log("Network key :", this.key, "from file " + fName,"on network",this.number);
+    else
+        console.log("Network key : ", this.key, " on network",this.number);
 }
 
 Network.prototype = {

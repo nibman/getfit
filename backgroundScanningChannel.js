@@ -1,6 +1,8 @@
 ﻿"use strict";
 
 var DeviceProfile = require('./deviceProfile.js');
+var DeviceProfile_HRM = require('./deviceProfile_HRM.js');
+var DeviceProfile_SDM = require('./deviceProfile_SDM.js');
 var CRC = require('./crc.js');
 var ANT = require('./ant-lib');
 var fs = require('fs');
@@ -19,16 +21,17 @@ BackgroundScanningChannel.constructor = BackgroundScanningChannel;
 
 BackgroundScanningChannel.prototype = {
 
-    getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, lowPrioritySearchTimeout) {
+    getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, deviceType, transmissionType, lowPrioritySearchTimeout, startupDirectory, frequency ,key) {
         // Setup channel parameters for background scanning
-        this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_only_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
+        //console.log("Low priority search timeout", lowPrioritySearchTimeout);
+        this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_only_channel, networkNr, key, startupDirectory);
 
-        this.channel.setExtendedAssignment(ANT.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE);
+        this.channel.setExtendedAssignment(Channel.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE);
         this.channel.setChannelId(deviceNr, deviceType, transmissionType, false);
-        this.channel.setChannelPeriod(DeviceProfile_ANTFS.prototype.CHANNEL_PERIOD);
+        //this.channel.setChannelPeriod(DeviceProfile_ANTFS.prototype.CHANNEL_PERIOD);
         this.channel.setLowPrioritySearchTimeout(lowPrioritySearchTimeout);
         this.channel.setChannelSearchTimeout(0); // Disable High priority search
-        this.channel.setChannelFrequency(ANT.prototype.ANT_FREQUENCY);
+        this.channel.setChannelFrequency(frequency);
         //this.channel.setChannelSearchWaveform(DeviceProfile_ANTFS.prototype.SEARCH_WAVEFORM);
 
         // Functions available as callbacks
@@ -42,9 +45,59 @@ BackgroundScanningChannel.prototype = {
 
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         //this.channel.deviceProfile = this; // Attach channel to device profile
-
+        //console.log(this.channel);
         return this.channel;
     },
+
+    broadCastDataParser: function (data) {
+        //console.log(Date.now() + " Background scanning channel BROADCAST : ", data, this.channelID);
+        //channelID:
+        //    { channelNumber: 0,
+        //        deviceNumber: 51144,
+        //        deviceTypeID: 124,
+        //        transmissionType: 1,
+        // TO DO : open channel for  this.channelID device profile
+
+        var deviceProfile_HRM,
+            self = this;
+
+        switch (this.channelID.deviceTypeID) {
+
+            case DeviceProfile_HRM.prototype.DEVICE_TYPE:
+
+                // By convention when a master is found and a new channel is created/opened to handle broadcasts,
+                // the background channel search will not trigger anymore on this master
+
+                console.log(Date.now(), "Found HRM - heart rate monitor - device",this.channelID);
+
+                deviceProfile_HRM = new DeviceProfile_HRM(this.nodeInstance);
+                this.nodeInstance.ANT.setChannelConfiguration(1, deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT,
+                    1, self.channelID.deviceNumber, self.channelID.transmissionType, ANT.prototype.SEARCH_TIMEOUT.INFINITE));
+                    self.nodeInstance.ANT.activateChannelConfiguration(1, function error(err) { console.log(Date.now(), "Could not activate channel configuration for HRM", err); },
+                        function successCB(data) {
+                            self.nodeInstance.ANT.open(1, function error(err) { console.log(Date.now(), "Could not open channel for HRM device",self.channelID, err); },
+                                    function success(data) {
+                                        console.log(Date.now(), "Channel open for HRM");
+                                    }
+                                    ,true);
+                        });
+
+                break;
+
+            case DeviceProfile_SDM.prototype.DEVICE_TYPE:
+                console.log(Date.now(),"Found SDM4 - foot pod - device");
+                break;
+
+            default:
+                console.log(Date.now() + "Not implemented support for device type " + this.channelID.deviceTypeID);
+                break;
+        }
+        
+    },
+
+    channelResponseEvent: function (data) {
+        console.log(Date.now() + " Background scanning channel RESPONSE/EVENT : ", data);
+    }
 };
 
 module.exports = BackgroundScanningChannel;

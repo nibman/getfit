@@ -1,17 +1,28 @@
 var events = require('events');
 var util = require('util');
 var Network = require('./network.js');
-var ANT = require('./ant-lib');
 
 function Channel(channelNr, channelType, networkNr, networkKey, startupDirectory) {
     //this.host = host;
     this.number = channelNr;
     this.channelType = channelType;
     this.network = new Network(networkNr, networkKey, startupDirectory);
+   // console.log("New channel created:", this);
     //this.ANTEngine = new ANT(host, this);
 }
 
 util.inherits(Channel, events.EventEmitter);
+
+Channel.prototype.EXTENDED_ASSIGNMENT = {
+    0x01: "Background Scanning Enable",
+    0x04: "Frequency Agility Enable",
+    0x10: "Fast Channel Initiation Enable",
+    0x20: "Asynchronous Transmission Enable",
+    BACKGROUND_SCANNING_ENABLE: 0x01,
+    FREQUENCY_AGILITY_ENABLE: 0x04,
+    FAST_CHANNEL_INITIATION_ENABLE: 0x10,
+    ASYNCHRONOUS_TRANSMISSION_ENABLE: 0x20
+};
 
 Channel.prototype.EVENT = {
 
@@ -59,21 +70,22 @@ Channel.prototype.setExtendedAssignment = function (extendedAssignment) {
     var friendly = "";
     this.extendedAssignment = extendedAssignment;
 
-    if (this.extendedAssignment & ANT.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE)
-        friendly += ANT.prototype.EXTENDED_ASSIGNMENT[ANT.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE];
+    if (this.extendedAssignment & Channel.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE)
+        friendly += Channel.prototype.EXTENDED_ASSIGNMENT[Channel.prototype.EXTENDED_ASSIGNMENT.BACKGROUND_SCANNING_ENABLE];
 
-    if (this.extendedAssignment & ANT.prototype.EXTENDED_ASSIGNMENT.FREQUENCY_AGILITY_ENABLE)
-        friendly += ANT.prototype.EXTENDED_ASSIGNMENT[ANT.prototype.EXTENDED_ASSIGNMENT.FREQUENCY_AGILITY_ENABLE];
+    if (this.extendedAssignment & Channel.prototype.EXTENDED_ASSIGNMENT.FREQUENCY_AGILITY_ENABLE)
+        friendly += Channel.prototype.EXTENDED_ASSIGNMENT[Channel.prototype.EXTENDED_ASSIGNMENT.FREQUENCY_AGILITY_ENABLE];
 
-    if (this.extendedAssignment & ANT.prototype.EXTENDED_ASSIGNMENT.FAST_CHANNEL_INITIATION_ENABLE)
-        friendly += ANT.prototype.EXTENDED_ASSIGNMENT[ANT.prototype.EXTENDED_ASSIGNMENT.FAST_CHANNEL_INITIATION_ENABLE];
+    if (this.extendedAssignment & Channel.prototype.EXTENDED_ASSIGNMENT.FAST_CHANNEL_INITIATION_ENABLE)
+        friendly += Channel.prototype.EXTENDED_ASSIGNMENT[Channel.prototype.EXTENDED_ASSIGNMENT.FAST_CHANNEL_INITIATION_ENABLE];
 
-    if (this.extendedAssignment & ANT.prototype.EXTENDED_ASSIGNMENT.ASYNCHRONOUS_TRANSMISSION_ENABLE)
-        friendly += ANT.prototype.EXTENDED_ASSIGNMENT[ANT.prototype.EXTENDED_ASSIGNMENT.ASYNCHRONOUS_TRANSMISSION_ENABLE];
+    if (this.extendedAssignment & Channel.prototype.EXTENDED_ASSIGNMENT.ASYNCHRONOUS_TRANSMISSION_ENABLE)
+        friendly += Channel.prototype.EXTENDED_ASSIGNMENT[Channel.prototype.EXTENDED_ASSIGNMENT.ASYNCHRONOUS_TRANSMISSION_ENABLE];
 
     this.extendedAssignmentFriendly = friendly;
 
-}
+};
+
 Channel.prototype.setChannelId = function (usDeviceNum, ucDeviceType, ucTransmissionType, pairing) {
     if (typeof usDeviceNum === "undefined" || typeof ucDeviceType === "undefined" || typeof ucTransmissionType === "undefined") {
         console.trace();
@@ -85,10 +97,11 @@ Channel.prototype.setChannelId = function (usDeviceNum, ucDeviceType, ucTransmis
     this.channelID.deviceType = ucDeviceType; // i.e HRM = 0x78 = 120 dec. 8-bit ANTWare 0 - 127, 0 = wildcard, 7-bit pairing
     if (pairing)
         this.channelID.deviceType = ucDeviceType | 0x80; // Set bit 7 high;
+
     this.channelID.transmissionType = ucTransmissionType;
 
-  //  return this.channelID;
-},
+    //  return this.channelID;
+};
 
 Channel.prototype.setChannelPeriod = function (usMessagePeriod) {
     var rate;
@@ -140,12 +153,12 @@ Channel.prototype.setLowPrioritySearchTimeout = function (ucSearchTimeout) {
             friendlyFormat = "Setting search timeout for channel " + this.number + " to " + ucSearchTimeout + " = Infinite search";
             break;
         default:
-            friendlyFormat = "Setting search timeout for channel " + this.number + " to " + ucSearchTimeout + " = " + ucSearchTimeout * 2.5 + "sec.";
+            friendlyFormat = "Setting search timeout for channel " + this.number + " to " + ucSearchTimeout + " = " + ucSearchTimeout * 2.5 + " sec.";
             break;
     }
 
     this.lowPrioritySearchTimeoutFriendly = friendlyFormat;
-}
+};
 
 Channel.prototype.setChannelFrequency = function (ucRFFreq) {
     var freq = 2400 + ucRFFreq, friendlyFormat;

@@ -22,6 +22,14 @@ DeviceProfile.prototype = {
 
     getMasterChannelConfiguration: function () {
         return "Not defined";
+    },
+
+    broadCastDataParser: function (data) {
+        console.log(Date.now()+"Broadcast RX : ", data);
+    },
+
+    channelResponseEvent: function (data) {
+        console.log(Date.now() + "Response/Event RX : ", data);
     }
 };
 
