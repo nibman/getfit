@@ -73,11 +73,15 @@ function GetFIT() {
    // console.log("argv", process.argv);
 
     if (process.argv[2] === "-d" || process.argv[2] === "--download") {
-        if (typeof process.argv[3] === "undefined")
+        if (typeof process.argv[3] === "undefined") {
+            console.log(Date.now(),"Adding DOWNLOAD NEW command to queue");
             self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW);
-        else if (process.argv[3] === "*")
+        } else if (process.argv[3] === "*") {
+            console.log(Date.now(),"Adding DOWNLOAD ALL command to queue");
             self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_ALL);
+        }
         else {
+            console.log(Date.now(),"Adding DOWNLOAD MULTIPLE command to queue");
             self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_MULTIPLE); // i.e '1,2,3'
             //argNr = 3;
             self.commandIndex.push(parseIndex(process.argv[3]));
@@ -85,6 +89,7 @@ function GetFIT() {
 
 
     } else if (process.argv[2] === "-e" || process.argv[2] === "--erase") {
+        console.log(Date.now(),"Adding ERASE command to queue");
         self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.ERASE_MULTIPLE);
         if (typeof process.argv[3] === "undefined") {
             console.log("Missing file index/range");
@@ -94,6 +99,7 @@ function GetFIT() {
             self.commandIndex.push(parseIndex(process.argv[3]));
 
     } else if (process.argv[2] === "-b" || process.argv[2] === "--background") {
+        console.log(Date.now(),"Using background search channel for ANT+ devices");
         this.useBackgroundScanningChannel = true;
     }
     //else {
