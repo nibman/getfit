@@ -25,7 +25,7 @@ DeviceProfile_SDM.prototype = {
     // Override/"property shadowing"
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout, lowPrioritySearchTimeout) {
 
-        this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT);
+        this.channel = new Channel(channelNr, Channel.prototype.CHANNEL_TYPE.receive_channel, networkNr, Network.prototype.NETWORK_KEY.ANT, this.nodeInstance.STARTUP_DIRECTORY);
 
         this.channel.setChannelId(deviceNr, DeviceProfile_SDM.prototype.DEVICE_TYPE, transmissionType, false);
 
