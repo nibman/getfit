@@ -197,7 +197,10 @@ ANT.prototype.ANT_MESSAGE = {
     set_channel_search_priority: { id: 0x75, friendly: "Set channel search priority" },
 
     0x6E: "Lib Config",
-    libConfig : { id : 0x6E, friendly: "Lib Config" },
+    libConfig: { id: 0x6E, friendly: "Lib Config" },
+
+    0x66: "Enable Extended Messages",
+    RxExtMesgsEnable : { id : 0x66, friendly : "Enable Extended Messages" },
 
     // Data message
 
@@ -1639,6 +1642,16 @@ ANT.prototype.libConfig = function(ucLibConfig,errorCallback,successCallback)
     //console.log("libConfig hex = ", Number(ucLibConfig).toString(16),"binary=",Number(ucLibConfig).toString(2));
     if (typeof this.capabilities !== "undefined" && this.capabilities.options.CAPABILITIES_EXT_MESSAGE_ENABLED)
         this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.libConfig, new Buffer([filler, ucLibConfig])), self.ANT_MESSAGE.libConfig.id, errorCallback, successCallback);
+    else if (typeof this.capabilities !== "undefined" && !this.capabilities.options.CAPABILITIES_EXT_MESSAGE_ENABLED)
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Device does not support extended messages - tried to configure via LibConfig API call");
+}
+
+// Only enables Channel ID extension of messages
+ANT.prototype.RxExtMesgsEnable = function (ucEnable, errorCallback, successCallback) {
+    var self = this, filler = 0;
+
+    if (typeof this.capabilities !== "undefined" && this.capabilities.options.CAPABILITIES_EXT_MESSAGE_ENABLED)
+        this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.RxExtMesgsEnable, new Buffer([filler, ucEnable])), self.ANT_MESSAGE.RxExtMesgsEnable.id, errorCallback, successCallback);
     else if (typeof this.capabilities !== "undefined" && !this.capabilities.options.CAPABILITIES_EXT_MESSAGE_ENABLED)
         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Device does not support extended messages - tried to configure via LibConfig API call");
 }
