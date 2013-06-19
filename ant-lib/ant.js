@@ -1637,8 +1637,10 @@ ANT.prototype.libConfig = function(ucLibConfig,errorCallback,successCallback)
     var self = this, filler = 0;
 
     //console.log("libConfig hex = ", Number(ucLibConfig).toString(16),"binary=",Number(ucLibConfig).toString(2));
-    this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.libConfig, new Buffer([filler, ucLibConfig])), self.ANT_MESSAGE.libConfig.id, errorCallback, successCallback);
-
+    if (typeof this.capabilities !== "undefined" && this.capabilities.options.CAPABILITIES_EXT_MESSAGE_ENABLED)
+        this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.libConfig, new Buffer([filler, ucLibConfig])), self.ANT_MESSAGE.libConfig.id, errorCallback, successCallback);
+    else if (typeof this.capabilities !== "undefined" && !this.capabilities.options.CAPABILITIES_EXT_MESSAGE_ENABLED)
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Device does not support extended messages - tried to configure via LibConfig API call");
 }
 
 // Spec. p. 77 "This functionality is primarily for determining precedenece with multiple search channels that cannot co-exists (Search channels with different networks or RF frequency settings)"
@@ -1672,10 +1674,11 @@ ANT.prototype.assignChannel = function (channelConfNr, errorCallback, successCal
     // also sets defaults values for RF, period, tx power, search timeout p.22
     if (typeof channel.extendedAssignment === "undefined") // i.e background scanning
         this.sendAndVerifyResponseNoError(this.create_message(ANT.prototype.ANT_MESSAGE.assign_channel, new Buffer([channel.number, channel.channelType, channel.network.number])), ANT.prototype.ANT_MESSAGE.assign_channel.id, errorCallback, successCallback);
-    else {
+    else if (typeof this.capabilities !== "undefined" && this.capabilities.options.CAPABILITIES_EXT_ASSIGN_ENABLED) {
         this.sendAndVerifyResponseNoError(this.create_message(ANT.prototype.ANT_MESSAGE.assign_channel, new Buffer([channel.number, channel.channelType, channel.network.number, channel.extendedAssignment])), ANT.prototype.ANT_MESSAGE.assign_channel.id, errorCallback, successCallback);
-    }
-    };
+    } else if (typeof this.capabilities !== "undefined" && !this.capabilities.options.CAPABILITIES_EXT_ASSIGN_ENABLED)
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Device does not support extended assignment");
+};
 
 ANT.prototype.setChannelId = function (channelConfNr, errorCallback, successCallback) {
 
@@ -1737,19 +1740,22 @@ ANT.prototype.setChannelPeriod = function (channelConfNr, errorCallback, success
 ANT.prototype.setLowPriorityChannelSearchTimeout = function (channelConfNr, errorCallback, successCallback) {
 
     // Timeout in sec. : ucSearchTimeout * 2.5 s, 255 = infinite, 0 = disable low priority search
+
     var channel_low_priority_search_timeout_msg, 
         self = this,
         channel = this.channelConfiguration[channelConfNr];
 
-    //channel.lowPrioritySearchTimeout = ucSearchTimeout;
+    if (typeof this.capabilities !== "undefined" && this.capabilities.options.CAPABILITIES_LOW_PRIORITY_SEARCH_ENABLED) {
+        //channel.lowPrioritySearchTimeout = ucSearchTimeout;
 
-    //console.log("Set channel low priority search timeout channel " + channel.number + " timeout " + channel.lowPrioritysearchTimeout);
-    var buf = new Buffer([channel.number, channel.lowPrioritySearchTimeout]);
+        //console.log("Set channel low priority search timeout channel " + channel.number + " timeout " + channel.lowPrioritysearchTimeout);
+        var buf = new Buffer([channel.number, channel.lowPrioritySearchTimeout]);
 
-    channel_low_priority_search_timeout_msg = this.create_message(ANT.prototype.ANT_MESSAGE.set_low_priority_channel_search_timeout, buf);
+        channel_low_priority_search_timeout_msg = this.create_message(ANT.prototype.ANT_MESSAGE.set_low_priority_channel_search_timeout, buf);
 
-    this.sendAndVerifyResponseNoError(channel_low_priority_search_timeout_msg, ANT.prototype.ANT_MESSAGE.set_low_priority_channel_search_timeout.id, errorCallback, successCallback);
-
+        this.sendAndVerifyResponseNoError(channel_low_priority_search_timeout_msg, ANT.prototype.ANT_MESSAGE.set_low_priority_channel_search_timeout.id, errorCallback, successCallback);
+    } else
+        self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Device does not support setting low priority search");
 };
 
 // High priority search mode
