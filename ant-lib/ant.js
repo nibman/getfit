@@ -375,7 +375,7 @@ ANT.prototype.parseChannelID = function (data,relIndex) {
     channelID.transmissionType = data[7+relativeIndex];
 
     channelID.toString = function () {
-        return "Channel # " + channelID.channelNumber + " device # " + channelID.deviceNumber + " device type " + channelID.deviceTypeID + " transmission type " + self.parseTransmissionType(channelID.transmissionType);
+        return "Channel # " + channelID.channelNumber + " device # " + channelID.deviceNumber + " device type " + channelID.deviceTypeID + " transmission type " + channelID.transmissionType+" " + self.parseTransmissionType(channelID.transmissionType);
     };
 
     this.channelConfiguration[channelID.channelNumber].channelID = channelID;

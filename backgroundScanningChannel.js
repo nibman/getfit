@@ -85,26 +85,45 @@ BackgroundScanningChannel.prototype = {
                 });
         }
 
+        var configuredChannel = function (channelNr,deviceType) {
+            // Only open 1 channel to a specific device type - first come, first served
+            //console.log(self.nodeInstance.ANT.channelConfiguration[channelNr]);
+            return (typeof self.nodeInstance.ANT.channelConfiguration !== "undefined" &&
+                typeof self.nodeInstance.ANT.channelConfiguration[channelNr] !== "undefined" &&
+                self.nodeInstance.ANT.channelConfiguration[channelNr].channelID.deviceType === deviceType);
+        }
+
         switch (this.channelID.deviceTypeID) {
 
             case DeviceProfile_HRM.prototype.DEVICE_TYPE:
 
                 // By convention when a master is found and a new channel is created/opened to handle broadcasts,
-                // the background channel search will not trigger anymore on this master. 
+                // the background channel search will not trigger anymore on this master, but can trigger on same device type.
+                // Only one channel pr. device type is allocated
 
-                console.log(Date.now(), "Found HRM - heart rate monitor - device",this.channelID);
+                console.log(Date.now(), "Found HRM - heart rate monitor - device",this.channelID.toString());
 
-                deviceProfile = new DeviceProfile_HRM(this.nodeInstance);
-                openChannel(1);
-
+                if (configuredChannel(1, this.channelID.deviceTypeID))
+                    console.log(Date.now(),"Already configured channel to receive broadcast from device type/HRM");
+                else {
+                    deviceProfile = new DeviceProfile_HRM(this.nodeInstance);
+                    openChannel(1);
+                    //setTimeout(function () {
+                    //    console.log(Date.now(), "Calling broadcast data paser for testing of registering of a new HRM device");
+                    //    self.broadCastDataParser(data);
+                    //}, 1000);
+                }
                 break;
 
             case DeviceProfile_SDM.prototype.DEVICE_TYPE:
 
-                console.log(Date.now(), "Found SDM4 - foot pod - device", this.channelID);
-                deviceProfile = new DeviceProfile_SDM(this.nodeInstance);
-                openChannel(2);
-
+                console.log(Date.now(), "Found SDM4 - foot pod - device", this.channelID.toString());
+                if (configuredChannel(2, this.channelID.deviceTypeID))
+                    console.log(Data.now(), "Already configured channel to receive broadcast from device type/SDM");
+                else {
+                    deviceProfile = new DeviceProfile_SDM(this.nodeInstance);
+                    openChannel(2);
+                }
                 break;
 
             default:
