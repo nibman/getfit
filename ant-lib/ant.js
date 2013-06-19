@@ -750,7 +750,8 @@ ANT.prototype.parse_response = function (data) {
 
             var channelResponseMessage = antInstance.parseChannelResponse(data);
 
-            console.log(Date.now(),channelResponseMessage, data);
+            //console.log(Date.now(),channelResponseMessage, data);
+            self.emit(ANT.prototype.EVENT.LOG_MESSAGE, channelResponseMessage);
 
             msgStr += ANT.prototype.ANT_MESSAGE.channel_response.friendly + " " + channelResponseMessage;
             channelNr = data[3];
@@ -839,6 +840,9 @@ ANT.prototype.parse_response = function (data) {
             break;
     }
 
+
+
+
     //if (msgID !== ANT.prototype.ANT_MESSAGE.burst_transfer_data.id) // Avoid burst logging -> gives performance problems
     //    console.log(Date.now() + " Rx: ", data, msgStr);
 
@@ -856,12 +860,21 @@ ANT.prototype.parse_response = function (data) {
     //        console.log("Buffer index " + byteNr + ", value: " + data[byteNr]);
     //}
 
+
+    // There might be more buffered data messages from ANT engine available
+
+    var nextExpectedSYNCIndex = 1 + msgLength + 2 + 1;
+    if (data.length > nextExpectedSYNCIndex) {
+        //console.log(data.slice(nextExpectedSYNCIndex));
+        this.parse_response(data.slice(nextExpectedSYNCIndex));
+    }
+
 };
 
 // Continuously listen on incoming packets from ANT engine and send it to the general parser for further processing
 ANT.prototype.listen = function (transferCancelledCallback) {
 
-    var self = this, NO_TIMEOUT = 0, TIMEOUT = 30000;
+    var self = this, NO_TIMEOUT = 0, TIMEOUT = 30000, msgLength, channelNr;
 
     function retry() {
 
@@ -875,7 +888,7 @@ ANT.prototype.listen = function (transferCancelledCallback) {
                 //console.log(error);
                 // Transfer cancelled, may be aborted by pressing Ctrl-C in Node.js 
                 if (typeof transferCancelledCallback === "function") {
-                    self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Calling cancellation callback");
+                    //self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Calling cancellation callback "+transferCancelledCallback.name);
                     transferCancelledCallback();
                 }
                 else
@@ -889,6 +902,12 @@ ANT.prototype.listen = function (transferCancelledCallback) {
         },
 
         successCB = function success(data) {
+            msgLength = data[1];
+            channelNr = data[3];
+            //if (data.length > 1 + msgLength + 2+1) {
+            //    //console.log(data.inspect());
+            //    self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Buffered data (more than one data message) received on channel "+channelNr+ ", length of data " + data.length + " bytes");
+            //}
             self.parse_response.call(self, data);
             process.nextTick(retry);
         };
@@ -981,6 +1000,7 @@ ANT.prototype.create_message = function (message, content) {
     };
 };
 
+// ANT Message Protocol and Usage. rev 5.0b - page 115
 ANT.prototype.parseCapabilities = function (data) {
     var maxANTChannels = data[3],
         maxNetworks = data[4],
@@ -1013,26 +1033,28 @@ ANT.prototype.parseCapabilities = function (data) {
             CAPABILITIES_NO_BURST_MESSAGES: standardOptions & (1 << 6),
 
             CAPABILITIES_NETWORK_ENABLED: advancedOptions & 0x02,
-            CAPABILITIES_SERIAL_NUMBER_ENABLED: advancedOptions & (1 << 4),
-            CAPABILITIES_PER_CHANNEL_TX_POWER_ENABLED: advancedOptions & (1 << 5),
-            CAPABILITIES_LOW_PRIORITY_SEARCH_ENABLED: advancedOptions & (1 << 6),
-            CAPABILITIES_SCRIPT_ENABLED: advancedOptions & (1 << 7),
-            CAPABILITIES_SEARCH_LIST_ENABLED: advancedOptions & (1 << 8),
+            CAPABILITIES_SERIAL_NUMBER_ENABLED: advancedOptions & (1 << 3),
+            CAPABILITIES_PER_CHANNEL_TX_POWER_ENABLED: advancedOptions & (1 << 4),
+            CAPABILITIES_LOW_PRIORITY_SEARCH_ENABLED: advancedOptions & (1 << 5),
+            CAPABILITIES_SCRIPT_ENABLED: advancedOptions & (1 << 6),
+            CAPABILITIES_SEARCH_LIST_ENABLED: advancedOptions & (1 << 7),
 
             CAPABILITIES_LED_ENABLED: advancedOptions2 & 0x01,
             CAPABILITIES_EXT_MESSAGE_ENABLED: advancedOptions2 & 0x02,
-            CAPABILITIES_SCAN_MODE_ENABLED: advancedOptions2 & (1 << 3),
-            CAPABILITIES_PROXY_SEARCH_ENABLED: advancedOptions2 & (1 << 5),
-            CAPABILITIES_EXT_ASSIGN_ENABLED: advancedOptions2 & (1 << 6),
-            CAPABILITIES_FS_ANTFS_ENABLED: advancedOptions2 & (1 << 7),
+            CAPABILITIES_SCAN_MODE_ENABLED: advancedOptions2 & (1 << 2),
+            CAPABILITIES_PROXY_SEARCH_ENABLED: advancedOptions2 & (1 << 4),
+            CAPABILITIES_EXT_ASSIGN_ENABLED: advancedOptions2 & (1 << 5),
+            CAPABILITIES_FS_ANTFS_ENABLED: advancedOptions2 & (1 << 6), // (1 << n) = set bit n high (bit numbered from 0 - n)
 
             CAPABILITIES_ADVANCED_BURST_ENABLED: advancedOptions3 & 0x01,
             CAPABILITIES_EVENT_BUFFERING_ENABLED: advancedOptions3 & 0x02,
-            CAPABILITIES_EVENT_FILTERING_ENABLED: advancedOptions3 & (1 << 3),
-            CAPABILITIES_HIGH_DUTY_SEARCH_ENABLED: advancedOptions3 & (1 << 4),
-            CAPABILITIES_SELECTIVE_DATA_ENABLED: advancedOptions3 & (1 << 7)
+            CAPABILITIES_EVENT_FILTERING_ENABLED: advancedOptions3 & (1 << 2),
+            CAPABILITIES_HIGH_DUTY_SEARCH_ENABLED: advancedOptions3 & (1 << 3),
+            CAPABILITIES_SELECTIVE_DATA_ENABLED: advancedOptions3 & (1 << 6)
         }
     };
+
+    console.log(self.capabilities);
 
     var msg = "Capabilities: channels " + maxANTChannels + " networks " + maxNetworks + " : ";
 
@@ -1527,7 +1549,7 @@ ANT.prototype.init = function (errorCallback, callback) {
 ANT.prototype.setChannelConfiguration = function (channelConfNr, channel) {
     var self = this;
 
-    console.log(Date.now() + "Configuration nr. ", channelConfNr, "of channel nr ", channel.number);
+    //console.log(Date.now() + "Configuration nr. ", channelConfNr, "of channel nr ", channel.number);
 
     if (typeof self.channelConfiguration === "undefined") {
         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "No channel configuration object available to attach channel to. getCapabilities should be run beforehand to get max. available channels for device");
@@ -1633,7 +1655,7 @@ ANT.prototype.setNetworkKey = function (channelConfNr, errorCallback, successCal
     var self = this;
     var channel = this.channelConfiguration[channelConfNr];
 
-     console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key +" channel "+channel.number);
+    // console.log("Setting network key on net " + channel.network.number + " key: " + channel.network.key +" channel "+channel.number);
 
     this.sendAndVerifyResponseNoError(this.create_message(this.ANT_MESSAGE.set_network_key, Buffer.concat([new Buffer([channel.network.number]), new Buffer(channel.network.key)])), self.ANT_MESSAGE.set_network_key.id, errorCallback, successCallback);
     
@@ -1643,8 +1665,8 @@ ANT.prototype.assignChannel = function (channelConfNr, errorCallback, successCal
 
     var channel = this.channelConfiguration[channelConfNr], self = this;
 
-    console.log("Assign channel " + channel.number + " to channel type " + Channel.prototype.CHANNEL_TYPE[channel.channelType] + "(" +
-        channel.channelType + ")" + " on network " + channel.network.number);
+    //console.log("Assign channel " + channel.number + " to channel type " + Channel.prototype.CHANNEL_TYPE[channel.channelType] + "(" +
+    //    channel.channelType + ")" + " on network " + channel.network.number);
 
     // Assign channel command should be issued before any other channel configuration messages (p. 64 ANT Message Protocol And Usaga Rev 50) ->
     // also sets defaults values for RF, period, tx power, search timeout p.22
@@ -1812,7 +1834,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback, n
                             self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Expected event CHANNEL_CLOSED");
                             retryNr++;
                             if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
-                                self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Discarding data from ANT engine packet queue. Retrying to get EVENT CHANNEL CLOSED from ANT device");
+                                self.emit(ANT.prototype.EVENT.LOG_MESSAGE,"Discarding "+data.inspect()+" from ANT engine packet queue. Retrying to get EVENT CHANNEL CLOSED from ANT device");
                                 retryEventChannelClosed();
                             }
                             else {
@@ -1832,7 +1854,7 @@ ANT.prototype.close = function (channelConfNr, errorCallback, successCallback, n
                                      self.emit(ANT.prototype.EVENT.LOG_MESSAGE, "Expected response NO ERROR for close channel");
                                      retryNr++;
                                      if (retryNr < ANT.prototype.ANT_RETRY_ON_CLOSE) {
-                                         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Discarding data from ANT engine packet queue. Retrying to get NO ERROR response from ANT device");
+                                         self.emit(ANT.prototype.EVENT.LOG_MESSAGE, " Discarding "+data.inspect()+" from ANT engine packet queue. Retrying to get NO ERROR response from ANT device");
                                          retryResponseNoError();
                                      }
                                      else {

@@ -78,7 +78,7 @@ BackgroundScanningChannel.prototype = {
                        // function successCB() {
                             self.nodeInstance.ANT.open(channelNr, function error(err) { console.log(Date.now(), "Could not open channel", self.channelID, err); },
                                     function success(data) {
-                                        console.log(Date.now(), "Channel open for profile " + deviceProfile.NAME);
+                                        //console.log(Date.now(), "Channel open for profile " + deviceProfile.NAME);
                                     }
                                     , true);
                       //  },true);
@@ -101,7 +101,8 @@ BackgroundScanningChannel.prototype = {
                 // the background channel search will not trigger anymore on this master, but can trigger on same device type.
                 // Only one channel pr. device type is allocated
 
-                console.log(Date.now(), "Found HRM - heart rate monitor - device",this.channelID.toString());
+                console.log(Date.now(), "Found HRM - heart rate monitor - device")
+                console.log(Date.now(),this.channelID.toString());
 
                 if (configuredChannel(1, this.channelID.deviceTypeID))
                     console.log(Date.now(),"Already configured channel to receive broadcast from device type/HRM");
@@ -117,7 +118,8 @@ BackgroundScanningChannel.prototype = {
 
             case DeviceProfile_SDM.prototype.DEVICE_TYPE:
 
-                console.log(Date.now(), "Found SDM4 - foot pod - device", this.channelID.toString());
+                console.log(Date.now(), "Found SDM4 - foot pod - device");
+                console.log(Date.now(), this.channelID.toString());
                 if (configuredChannel(2, this.channelID.deviceTypeID))
                     console.log(Data.now(), "Already configured channel to receive broadcast from device type/SDM");
                 else {

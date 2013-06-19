@@ -10,10 +10,10 @@ function Network(nr, key, startupDirectory) {
     }
     else
         this.key = key;
-    if (fName)
-        console.log("Network key :", this.key, "from file " + fName,"on network",this.number);
-    else
-        console.log("Network key : ", this.key, " on network",this.number);
+    //if (fName)
+    //    console.log("Network key :", this.key, "from file " + fName,"on network",this.number);
+    //else
+    //    console.log("Network key : ", this.key, " on network",this.number);
 }
 
 Network.prototype = {

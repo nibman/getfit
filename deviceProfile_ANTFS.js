@@ -30,7 +30,7 @@ function DeviceProfile_ANTFS(nodeInstance) {
                 console.log("New root directory created at " + DeviceProfile_ANTFS.prototype.ROOT_DIR);
             });
         } else
-            console.log(Date.now()+ " Root directory ", DeviceProfile_ANTFS.prototype.ROOT_DIR);
+            console.log(Date.now()+ " Root directory (storage of device data)", DeviceProfile_ANTFS.prototype.ROOT_DIR);
     });
 
 }
