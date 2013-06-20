@@ -375,7 +375,9 @@ ANT.prototype.parseChannelID = function (data,relIndex) {
 
     channelID.deviceNumber = data.readUInt16LE(4+relativeIndex);
     channelID.deviceTypeID = data[6+relativeIndex];
-    channelID.transmissionType = data[7+relativeIndex];
+    channelID.transmissionType = data[7 + relativeIndex];
+
+    channelID.toProperty =  "CHANNEL_ID_" + channelID.channelNumber + "_" + channelID.deviceNumber + "_" + channelID.deviceTypeID + "_" + channelID.transmissionType;
 
     channelID.toString = function () {
         return "Channel # " + channelID.channelNumber + " device # " + channelID.deviceNumber + " device type " + channelID.deviceTypeID + " transmission type " + channelID.transmissionType+" " + self.parseTransmissionType(channelID.transmissionType);
@@ -590,8 +592,13 @@ ANT.prototype.parse_extended_message = function (channelNr,data) {
         // console.log(data,relativeIndex);
         if (typeof this.channelConfiguration[channelNr].RX_Timestamp)
             previous_RX_Timestamp = this.channelConfiguration[channelNr].RX_Timestamp;
-
-        this.channelConfiguration[channelNr].RX_Timestamp = data.readUInt16LE(relativeIndex);
+        // Some times RangeError is generated during SIGINT
+        try {
+            this.channelConfiguration[channelNr].RX_Timestamp = data.readUInt16LE(relativeIndex);
+        } catch (err) {
+            console.log("Data length : ", data.length, "relativeIndex", relativeIndex,err);
+            throw err;
+        }
         if (typeof previous_RX_Timestamp !== "undefined") {
             this.channelConfiguration[channelNr].RX_Timestamp_Difference = this.channelConfiguration[channelNr].RX_Timestamp - previous_RX_Timestamp;
             if (this.channelConfiguration[channelNr].RX_Timestamp_Difference < 0) // Roll over
@@ -703,10 +710,11 @@ ANT.prototype.parse_response = function (data) {
             channelNr = data[3];
             msgStr += " on channel " + channelNr;
 
+            // Parse flagged extended message info. if neccessary
             if (msgLength > 9) {
                 msgFlag = data[12];
                 //console.log("Extended msg. flag : 0x"+msgFlag.toString(16));
-                this.parse_extended_message(channelNr, data);
+                this.parse_extended_message(channelNr, data); // i.e channel ID
             }
 
             // Check for updated channel ID to the connected device (ONLY FOR IF CHANNEL ID IS NOT ENABLED IN EXTENDED PACKET INFO)
@@ -864,7 +872,7 @@ ANT.prototype.parse_response = function (data) {
     //}
 
 
-    // There might be more buffered data messages from ANT engine available
+    // There might be more buffered data messages from ANT engine available (if commands/request are sent, but not read in awhile)
 
     var nextExpectedSYNCIndex = 1 + msgLength + 2 + 1;
     if (data.length > nextExpectedSYNCIndex) {

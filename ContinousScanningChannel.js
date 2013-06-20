@@ -15,6 +15,7 @@ function ContinousScanningChannel(nodeInstance) {
     this.nodeInstance = nodeInstance;
     this.deviceProfile_HRM = new DeviceProfile_HRM(nodeInstance);
     this.deviceProfile_SDM = new DeviceProfile_SDM(nodeInstance);
+    
 }
 
 ContinousScanningChannel.prototype = DeviceProfile.prototype;
@@ -47,8 +48,24 @@ ContinousScanningChannel.prototype = {
 
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         this.channel.deviceProfile = this; // Attach channel to device profile
+
+        this.channel.channelIDCache = {}; // Contains a cache of channel ID thats discovered on the channel
+
+        //this.wireupDeviceProfiles();
+        
         //console.log(this.channel);
+
         return this.channel;
+    },
+
+    // Wire up deviceProfiles for potential masters to our channel
+    wireupDeviceProfiles : function ()
+    {
+       
+        this.deviceProfile_HRM.channel = this.channel;
+        this.deviceProfile_SDM.channel = this.channel;
+
+       
     },
 
     broadCastDataParser: function (data) {
@@ -63,15 +80,29 @@ ContinousScanningChannel.prototype = {
         var deviceProfile,
             self = this; // Emitting channel
 
+        // console.log(Date.now(), "Continous scanning channel BROADCAST : ", data, this.channelID.toString());
+
+        // Create new object for a new master
+        if (typeof this.channelIDCache[this.channelID.toProperty] === "undefined")
+            this.channelIDCache[this.channelID.toProperty] = {};
 
         switch (this.channelID.deviceTypeID) {
 
             case DeviceProfile_HRM.prototype.DEVICE_TYPE:
-                this.deviceProfile.deviceProfile_HRM.broadCastDataParser(data);
+                this.deviceProfile.deviceProfile_HRM.channel = this;
+                //console.log("CHANNEL HRM", this.deviceProfile.deviceProfile_HRM.channel);
+                //this.deviceProfile.channel = this;
+                this.deviceProfile.deviceProfile_HRM.broadCastDataParser.call(this, data);
                 break;
 
             case DeviceProfile_SDM.prototype.DEVICE_TYPE:
-                this.deviceProfile.deviceProfile_SDM.broadCastDataParser(data);
+               // console.log("THIS.deviceProfile", this.deviceProfile.deviceProfile_SDM);
+                //this.deviceProfile = this.deviceProfile.deviceProfile_SDM;
+                //this.deviceProfile.channel = this;
+                this.deviceProfile.deviceProfile_SDM.channel = this;
+              
+                //console.log("CHANNEL SDM", this.deviceProfile.deviceProfile_SDM.channel);
+                this.deviceProfile.deviceProfile_SDM.broadCastDataParser.call(this,data);
                 break;
 
             default:

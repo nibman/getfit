@@ -264,7 +264,7 @@ GetFIT.prototype = {
                         });
                     };
 
-                    console.trace();
+                    //console.trace();
 
                     if (self.useContinousScanningChannel)
                         self.ANT.openRxScanMode(0, function (err) { console.log("Could not open Rx Scan Mode channel", err); }, listenFunc);

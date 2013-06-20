@@ -45,6 +45,8 @@ DeviceProfile_HRM.prototype = {
         this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
         this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
 
+        this.channel.channelIDCache = {};
+
         return channel;
     },
 
@@ -74,10 +76,6 @@ DeviceProfile_HRM.prototype = {
         }
     },
 
-    lostBroadCastData: function () {
-        console.log(Date.now()+" Lost broadcast data from HRM");
-    },
-
     broadCastDataParser: function (data) {
         var receivedTimestamp = Date.now(),
             self = this;// Will be cannel configuration
@@ -93,7 +91,8 @@ DeviceProfile_HRM.prototype = {
             // Header
 
             timestamp: receivedTimestamp,
-            deviceType: DeviceProfile_HRM.prototype.DEVICE_TYPE,  // Should make it possible to classify which sensors data comes from
+            //deviceType: DeviceProfile_HRM.prototype.DEVICE_TYPE,  // Should make it possible to classify which sensors data comes from
+            channelID : this.channelID,  // Channel ID is already contained in data, but its already parsed in the ANT library (parse_response func.)
 
             pageChangeToggle: pageChangeToggle,
             dataPageNumber: dataPageNumber,
@@ -104,10 +103,19 @@ DeviceProfile_HRM.prototype = {
 
         };
 
+        if (typeof this.channelID === "undefined")
+            console.log(Date.now(), "No channel ID found for this master, every master has a channel ID, verify that channel ID is set (should be set during parse_response in ANT lib.)");
+
+        if (typeof this.channelIDCache[this.channelID.toProperty] === "undefined") {
+            console.log(Date.now(), "Creating object in channelIDCache to store previousHeartBeatEventTime for master with channel Id", this.channelID);
+            this.channelIDCache[this.channelID.toProperty] = {};
+        }
+
         switch (dataPageNumber) {
 
             case 4: // Main data page
 
+                page.pageType = "Main";
                 page.previousHeartBeatEventTime = data.readUInt16LE(startOfPageIndex + 2);
 
                 var rollOver = (page.previousHeartBeatEventTime > page.heartBeatEventTime) ? true : false;
@@ -117,62 +125,64 @@ DeviceProfile_HRM.prototype = {
                 else
                     page.RRInterval = page.heartBeatEventTime - page.previousHeartBeatEventTime;
 
-                if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {  // Filter out identical messages
-                    this.previousHeartBeatEventTime = page.heartBeatEventTime;
-                    var msg = "HR " + page.computedHeartRate + " heart beat count " + page.heartBeatCount + " RR " + page.RRInterval;
+                // Must index channel = this by channelID to handle multiple masters
+                if (this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime !== page.heartBeatEventTime) {  // Filter out identical messages
+                    this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime = page.heartBeatEventTime;
+                    var msg = page.pageType + " " + page.dataPageNumber + " HR " + page.computedHeartRate + " heart beat count " + page.heartBeatCount + " RR " + page.RRInterval;
                     console.log(msg);
                     this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
 
-                    if (this.timeout) {
-                        clearTimeout(this.timeout);
+                    if (this.channelIDCache[this.channelID.toProperty].timeout) {
+                        clearTimeout(this.channelIDCache[this.channelID.toProperty].timeout);
                         //console.log("After clearing", this.timeout);
-                        delete this.timeout;
+                        delete this.channelIDCache[this.channelID.toProperty].timeout;
                     }
 
-                    this.timeout = setTimeout(function () { self.deviceProfile.lostBroadCastData(); }, 3000);
+                    this.channelIDCache[this.channelID.toProperty].timeout = setTimeout(function () { console.log(Date.now() + " Lost broadcast data from HRM"); }, 3000);
                 }
                 break;
 
             case 2: // Background data page - sent every 65'th message
-
+                page.pageType = "Background";
                 page.manufacturerID = data[startOfPageIndex + 1];
                 page.serialNumber = data.readUInt16LE(startOfPageIndex + 2);
 
-                if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {
-                    this.previousHeartBeatEventTime = page.heartBeatEventTime;
-                    console.log("Manufacturer " + page.manufacturerID + " serial number : " + page.serialNumber);
+                if (this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime !== page.heartBeatEventTime) {
+                    this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime = page.heartBeatEventTime;
+                    console.log(page.pageType + " " + page.dataPageNumber + " Manufacturer " + page.manufacturerID + " serial number : " + page.serialNumber);
                     this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                 }
 
                 break;
 
             case 3: // Background data page
-
+                page.pageType = "Background";
                 page.hardwareVersion = data[startOfPageIndex + 1];
                 page.softwareVersion = data[startOfPageIndex + 2];
                 page.modelNumber = data[startOfPageIndex + 3];
 
-                if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {
-                    this.previousHeartBeatEventTime = page.heartBeatEventTime;
-                    console.log("HW version " + page.hardwareVersion + " SW version " + page.softwareVersion + " Model " + page.modelNumber);
+                if (this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime !== page.heartBeatEventTime) {
+                    this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime = page.heartBeatEventTime;
+                    console.log(page.pageType + " " + page.dataPageNumber + " HW version " + page.hardwareVersion + " SW version " + page.softwareVersion + " Model " + page.modelNumber);
                     this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                 }
 
                 break;
 
             case 1: // Background data page
-
+                page.pageType = "Background";
                 page.cumulativeOperatingTime = (data.readUInt32LE(startOfPageIndex + 1) & 0x00FFFFFF) / 2; // Seconds since reset/battery replacement
-                if (this.previousHeartBeatEventTime !== page.heartBeatEventTime) {
-                    this.previousHeartBeatEventTime = page.heartBeatEventTime;
-                    console.log("Cumulative operating time (s) " + page.cumulativeOperatingTime + " hours: " + page.cumulativeOperatingTime / 3600);
+                if (this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime !== page.heartBeatEventTime) {
+                    this.channelIDCache[this.channelID.toProperty].previousHeartBeatEventTime = page.heartBeatEventTime;
+                    console.log(page.pageType+" "+page.dataPageNumber+ " Cumulative operating time (s) " + page.cumulativeOperatingTime + " hours: " + page.cumulativeOperatingTime / 3600);
                     this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                 }
 
                 break;
 
             case 0: // Background - unknown data format
+                page.pageType = "Background";
                 break;
 
             default:

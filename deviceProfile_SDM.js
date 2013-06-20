@@ -40,6 +40,7 @@ DeviceProfile_SDM.prototype = {
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         this.channel.deviceProfile = this; // Attach deviceprofile to channel
 
+        this.channel.channelIDCache = {};
 
         //this.channel = channel; // Attach channel to device profile
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
@@ -47,7 +48,7 @@ DeviceProfile_SDM.prototype = {
         this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
         this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
 
-        console.log(this.channel);
+        //console.log(this.channel);
 
         return this.channel;
 
@@ -59,7 +60,8 @@ DeviceProfile_SDM.prototype = {
     },
 
     broadCastDataParser: function (data) {
-        console.log(Date.now() + " SDM broadcast data ", data);
+        //console.log("THIS IN BROADCAST DATA PARSER", this);
+        // console.log(Date.now() + " SDM broadcast data ", data);
         var receivedTimestamp = Date.now(),
           self = this,
            UNUSED = 0x00,
@@ -69,17 +71,28 @@ DeviceProfile_SDM.prototype = {
         // 0 = SYNC, 1= Msg.length, 2 = Msg. id (broadcast), 3 = channel nr , 4= start of page  ...
         var startOfPageIndex = 4;
 
+       // console.log("CHANNELID AS PROPERTY", this.channelID.toProperty);
+      
+        //this.channelIDCache[this.channelID.toProperty].testing = "Hello there property value";
+        //console.log(this.channelIDCache[this.channelID.toProperty].testing);
 
         var page = {
             // Header
             dataPageNumber: data[startOfPageIndex] & 0x7F,
+            channelID : this.channelID,
 
             timestamp: Date.now()
         };
 
+        if (typeof this.channelID === "undefined") {
+            console.log(Date.now(), "No channel ID found for this master, every master has a channel ID, verify that channel ID is set (should be set during parse_response in ANT lib.)");
+            console.trace();
+        }
+
         switch (page.dataPageNumber) {
 
             case 1: // Main page
+                page.pageType = "Main";
                 page.timeFractional = data[startOfPageIndex + 1] * (1 / 200); // s
                 page.timeInteger = data[startOfPageIndex + 2];
                 page.time = page.timeInteger + page.timeFractional;
@@ -95,28 +108,29 @@ DeviceProfile_SDM.prototype = {
                 page.strideCount = data[startOfPageIndex + 6];
                 page.updateLatency = data[startOfPageIndex + 7] * (1 / 32); // s
 
-                msg = "";
+                // Time starts when SDM is powered ON
+                msg = page.pageType+ " "+page.dataPageNumber+ " ";
                 if (page.time !== UNUSED)
-                    msg += "Time : " + page.time + " s";
+                    msg += "SDM Time : " + page.time + " s";
                 else
-                    msg += "Time : UNUSED";
+                    msg += "SDM Time : 0";
 
                 if (page.distance !== UNUSED)
                     msg += " Distance : " + page.distance + " m";
                 else
-                    msg += " Distance : UNUSED";
+                    msg += " Distance : 0";
 
                 if (page.speed !== UNUSED)
-                    msg += " Speed : " + page.speed;
+                    msg += " Speed : " + page.speed.toFixed(1);
                 else
-                    msg += " Speed : UNUSED";
+                    msg += " Speed : 0";
 
                 msg += " Stride count : " + page.strideCount;
 
                 if (page.updateLatency !== UNUSED)
                     msg += " Update latency : " + page.updateLatency + " s";
                 else
-                    msg += " Update latency : UNUSED";
+                    msg += " Update latency : 0";
 
                 console.log(msg);
 
@@ -124,6 +138,7 @@ DeviceProfile_SDM.prototype = {
 
             case 2: // Base template 
 
+                page.pageType = "Background";
                 page.cadenceInteger = data[startOfPageIndex + 3] * (1 / 200); // s
                 page.cadenceFractional = (data[startOfPageIndex + 4] & 0xF0) * (1 / 16);
                 page.cadence = page.cadenceInteger + page.cadenceFractional;
@@ -164,24 +179,24 @@ DeviceProfile_SDM.prototype = {
                 }
 
                 switch (page.status.UseState) {
-                    case 0x00: page.status.UseStateFriendly = "Inactive"; break;
-                    case 0x01: page.status.UseStateFriendly = "Active"; break;
+                    case 0x00: page.status.UseStateFriendly = "IN-ACTIVE"; break;
+                    case 0x01: page.status.UseStateFriendly = "ACTIVE"; break;
                     case 0x02: page.status.UseStateFriendly = "Reserved"; break;
                     case 0x03: page.status.UseStateFriendly = "Reserved"; break;
                     default: page.status.UseStateFriendly = "? " + page.status.UseState; break;
                 }
 
 
-                msg = "";
+                msg = page.pageType + " "+page.dataPageNumber+" ";
                 if (page.cadence !== UNUSED)
-                    msg += "Cadence : " + page.cadence + " strides/min ";
+                    msg += "Cadence : " + page.cadence.toFixed(1) + " strides/min ";
                 else
-                    msg += "Cadence : UNUSED";
+                    msg += "Cadence : 0";
 
                 if (page.speed !== UNUSED)
-                    msg += " Speed : " + page.speed;
+                    msg += " Speed : " + page.speed.toFixed(1);
                 else
-                    msg += " Speed : UNUSED";
+                    msg += " Speed : 0";
 
 
                 msg += " Location: " + page.status.SDMLocationFriendly + " Battery: " + page.status.BatteryStatusFriendly + " Health: " + page.status.SDMHealthFriendly + " State: " + page.status.UseStateFriendly;
@@ -192,29 +207,30 @@ DeviceProfile_SDM.prototype = {
 
 
             case 0x50: // 80 Common data page
-
+                page.pageType = "Background";
                 page.HWRevision = data[startOfPageIndex + 3];
                 page.manufacturerID = data.readUInt16LE(4);
                 page.modelNumber = data.readUInt16LE(6);
 
-                console.log("HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
+                console.log(page.pageType+" "+page.dataPageNumber+ " HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
 
                 break;
 
             case 0x51: // 81 Common data page
-
+                page.pageType = "Background";
                 page.SWRevision = data[startOfPageIndex + 3];
                 page.serialNumber = data.readUInt32LE(4);
 
                 if (page.serialNumber === 0xFFFFFFFF)
-                    console.log("SW revision : " + page.SWRevision + " No serial number");
+                    console.log(page.pageType+" "+page.dataPageNumber+" SW revision : " + page.SWRevision + " No serial number");
                 else
-                    console.log("SW revision : " + page.SWRevision + " Serial number: " + page.serialNumber);
+                    console.log(page.pageType+" "+page.dataPageNumber+" SW revision : " + page.SWRevision + " Serial number: " + page.serialNumber);
 
                 break;
 
             case 0x52: // 82 Common data page - Battery Status
                 //console.log("Battery status : ",data);
+                page.pageType = "Background";
                 page.descriptive = {
                     coarseVoltage: data[startOfPageIndex + 7] & 0x0F,        // Bit 0-3
                     batteryStatus: (data[startOfPageIndex + 7] & 0x70) >> 4, // Bit 4-6
@@ -246,12 +262,19 @@ DeviceProfile_SDM.prototype = {
 
                 //console.log(page);
 
-                console.log("Cumulative operating time (s): " + page.cumulativeOperatingTime + " Battery (V) " + page.batteryVoltage + " Battery status: " + msg);
+                var batteryVoltageToString = function (voltage) {
+                    if (typeof voltage === "number")
+                        return voltage.toFixed(1);
+                    else
+                        return ""+voltage;
+                }
+
+                console.log(page.pageType + " "+page.dataPageNumber+" Cumulative operating time (s): " + page.cumulativeOperatingTime + " Battery (V) " + batteryVoltageToString(page.batteryVoltage) + " Battery status: " + msg);
                 break;
 
             default:
 
-                console.log("Page ", page.dataPageNumber, " not implemented.");
+                console.log("Page ", page.dataPageNumber, " parsing not implemented.");
                 break;
         }
     }
