@@ -45,7 +45,7 @@ DeviceProfile_HRM.prototype = {
         this.channel.addListener(Channel.prototype.EVENT.CHANNEL_RESPONSE_EVENT, this.channel.channelResponseEvent);
         this.channel.addListener(Channel.prototype.EVENT.BROADCAST, this.channel.broadCastDataParser);
 
-        this.channel.channelIDCache = {};
+        
 
         return channel;
     },
@@ -107,7 +107,7 @@ DeviceProfile_HRM.prototype = {
             console.log(Date.now(), "No channel ID found for this master, every master has a channel ID, verify that channel ID is set (should be set during parse_response in ANT lib.)");
 
         if (typeof this.channelIDCache[this.channelID.toProperty] === "undefined") {
-            console.log(Date.now(), "Creating object in channelIDCache to store previousHeartBeatEventTime for master with channel Id", this.channelID);
+            console.log(Date.now(), "Creating object in channelIDCache to store i.e previousHeartBeatEventTime for master with channel Id", this.channelID);
             this.channelIDCache[this.channelID.toProperty] = {};
         }
 

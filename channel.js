@@ -7,6 +7,7 @@ function Channel(channelNr, channelType, networkNr, networkKey, startupDirectory
     this.number = channelNr;
     this.channelType = channelType;
     this.network = new Network(networkNr, networkKey, startupDirectory);
+    this.channelIDCache = {};
    // console.log("New channel created:", this);
     //this.ANTEngine = new ANT(host, this);
 }

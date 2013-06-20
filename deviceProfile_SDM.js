@@ -40,8 +40,6 @@ DeviceProfile_SDM.prototype = {
         this.channel.nodeInstance = this.nodeInstance; // Attach channel to nodeInstance
         this.channel.deviceProfile = this; // Attach deviceprofile to channel
 
-        this.channel.channelIDCache = {};
-
         //this.channel = channel; // Attach channel to device profile
         this.channel.channelResponseEvent = this.channelResponseEvent || DeviceProfile.prototype.channelResponseEvent;
 
