@@ -125,6 +125,9 @@ DeviceProfile_SDM.prototype = {
 
                 msg += " Stride count : " + page.strideCount;
 
+                // p. 25 section 6.2.7 Update Latecy . Stride Based Speed and Distance Monitor Device Profile
+                // "represents the time from the end of the last motion event to the time at which the message was transmitted. This time includes computation time
+                // as well as the delay before the message is actually transmitted, which depends on the message rate"
                 if (page.updateLatency !== UNUSED)
                     msg += " Update latency : " + page.updateLatency + " s";
                 else
@@ -146,7 +149,7 @@ DeviceProfile_SDM.prototype = {
                 page.speed = page.speedInteger + page.speedFractional;
 
                 page.status = {
-                    SDMLocation: (data[startOfPageIndex + 7] & 0xC0) >> 7,
+                    SDMLocation: (data[startOfPageIndex + 7] & 0xC0) >> 6,
                     BatteryStatus: (data[startOfPageIndex + 7] & 0x30) >> 4,
                     SDMHealth: (data[startOfPageIndex + 7] & 0x0C) >> 2,
                     UseState: (data[startOfPageIndex + 7] & 0x03)
@@ -204,7 +207,7 @@ DeviceProfile_SDM.prototype = {
                 break;
 
 
-            case 0x50: // 80 Common data page
+            case 0x50: // 80 Common data page - Manufactorer's identification - REQUIRED - sent every 65 messages
                 page.pageType = "Background";
                 page.HWRevision = data[startOfPageIndex + 3];
                 page.manufacturerID = data.readUInt16LE(4);
@@ -214,7 +217,7 @@ DeviceProfile_SDM.prototype = {
 
                 break;
 
-            case 0x51: // 81 Common data page
+            case 0x51: // 81 Common data page - Product information - REQUIRED - sent every 65 messages
                 page.pageType = "Background";
                 page.SWRevision = data[startOfPageIndex + 3];
                 page.serialNumber = data.readUInt32LE(4);
