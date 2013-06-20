@@ -12,6 +12,7 @@ var
     DeviceProfile_ANTFS = require('./deviceProfile_ANTFS.js'),
     DeviceProfile_SPDCAD = require('./deviceProfile_SPDCAD.js'),
     BackgroundScanningChannel = require('./backgroundScanningChannel.js'),
+    ContinousScanningChannel = require('./continousScanningChannel.js'),
     Network = require('./network.js'),
     Channel = require('./channel.js');
 
@@ -101,6 +102,9 @@ function GetFIT() {
     } else if (process.argv[2] === "-b" || process.argv[2] === "--background") {
         console.log(Date.now(),"Using background search channel for ANT+ devices");
         this.useBackgroundScanningChannel = true;
+    } else if (process.argv[2] === "-c" || process.argv[2] === "--continous") {
+        console.log(Date.now(), "Using continous scan mode for ANT+ devices");
+        this.useContinousScanningChannel = true;
     }
     //else {
     //    showUsage();
@@ -114,14 +118,19 @@ function GetFIT() {
         console.log("   -d 'n1,n2,n3-n4' -download file at index n1 and n2 and n3 to n4");
         console.log("   -d * - download all readable files");
         console.log("   -e, --erase  n1 - erase file at index n1");
-        console.log("   -b, --background - background scanning channel ANT+");
+        console.log("   -b, --background - background scanning channel for ANT+ devices");
+        console.log("   -c, --continous - continous scanning channel for ANT+ devices");
     }
 
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
     this.ANT = new ANT(4047, 4104, this);
 
     //this.backgroundScanningChannelANTFS = new BackgroundScanningChannel(this);
-    this.backgroundScanningChannelANT = new BackgroundScanningChannel(this);
+    if (this.useBackgroundScanningChannel)
+        this.backgroundScanningChannelANT = new BackgroundScanningChannel(this);
+
+    if (this.useContinousScanningChannel)
+        this.continousScanningChannelANT = new ContinousScanningChannel(this);
 
     //this.deviceProfile_HRM = new DeviceProfile_HRM(this);
     //this.deviceProfile_SDM = new DeviceProfile_SDM(this);
@@ -210,33 +219,41 @@ GetFIT.prototype = {
 
         });
 
-        // Channel configurations indexed by channel nr.
-
-        if (this.useBackgroundScanningChannel)
-            self.ANT.setChannelConfiguration(0, self.backgroundScanningChannelANT.getSlaveChannelConfiguration(0, 0,
+        if (this.useContinousScanningChannel) {
+           
+            self.ANT.setChannelConfiguration(0, self.continousScanningChannelANT.getSlaveChannelConfiguration(0, 0,
                 Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
                 ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANT_FREQUENCY, Network.prototype.NETWORK_KEY.ANT));
+        }
+        else
 
-            //self.ANT.setChannelConfiguration(1, self.backgroundScanningChannelANTFS.getSlaveChannelConfiguration(1, 1,
-            //    Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
-            //    ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANTFS_FREQUENCY, Network.prototype.NETWORK_KEY.ANTFS));
+            if (this.useBackgroundScanningChannel)
+                self.ANT.setChannelConfiguration(0, self.backgroundScanningChannelANT.getSlaveChannelConfiguration(0, 0,
+                    Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
+                    ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANT_FREQUENCY, Network.prototype.NETWORK_KEY.ANT));
 
-            //self.ANT.setChannelConfiguration(1, self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT,      0, 0, 0, Math.round(15/2.5)));
-        else self.ANT.setChannelConfiguration(0, self.deviceProfile_ANTFS.getSlaveChannelConfiguration(0, 0,
-            // Timeout : Math.round(60 / 2.5)
-            Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
-            ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY));
+                //self.ANT.setChannelConfiguration(1, self.backgroundScanningChannelANTFS.getSlaveChannelConfiguration(1, 1,
+                //    Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
+                //    ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANTFS_FREQUENCY, Network.prototype.NETWORK_KEY.ANTFS));
+
+                //self.ANT.setChannelConfiguration(1, self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT,      0, 0, 0, Math.round(15/2.5)));
+            else self.ANT.setChannelConfiguration(0, self.deviceProfile_ANTFS.getSlaveChannelConfiguration(0, 0,
+                // Timeout : Math.round(60 / 2.5)
+                Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
+                ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY));
         //////self.ANT.setChannelConfiguration(2,self.deviceProfile_SDM.getSlaveChannelConfiguration(Network.prototype.ANT, 2, 0, 0, ANT.prototype.INFINITE_SEARCH));
         //self.ANT.setChannelConfiguration(3,self.deviceProfile_SPDCAD.getSlaveChannelConfiguration(Network.prototype.ANT, 3, 0, 0, ANT.prototype.INFINITE_SEARCH));
 
         // Lesson : ANT-FS and HRM on different network due to different keys
         // Seems like : Cannot simultaneously listen to broadcasts from ANT-FS =  2450 MHz and HRM/Bike spd/Stride sensor = 2457 Mhz, but with different msg. periode
 
+        
         var openChannel = function () {
             self.ANT.libConfig(ANT.prototype.LIB_CONFIG.ENABLE_RX_TIMESTAMP | ANT.prototype.LIB_CONFIG.ENABLE_RSSI | ANT.prototype.LIB_CONFIG.ENABLE_CHANNEL_ID,
                function errorCB(err) { console.log(Date.now() + " Could not configure ANT for extended info. RX Timestamp/RSSI/ChannelID", err); },
                 function successCB() {
-                    self.ANT.open(0, function (err) { console.log("Could not open channel", err); }, function () {
+
+                    var listenFunc = function () {
                         //    console.log(Date.now() + " Background scanning channel ANT+ OPEN");
                         self.ANT.listen.call(self.ANT, function transferCancelCB() {
                             self.ANT.iterateChannelStatus(0, true, function clean() {
@@ -245,7 +262,15 @@ GetFIT.prototype = {
                                 });
                             });
                         });
-                    });
+                    };
+
+                    console.trace();
+
+                    if (self.useContinousScanningChannel)
+                        self.ANT.openRxScanMode(0, function (err) { console.log("Could not open Rx Scan Mode channel", err); }, listenFunc);
+                    else 
+                       self.ANT.open(0, function (err) { console.log("Could not open channel", err); }, listenFunc);
+                    
                 });
         };
 
@@ -254,6 +279,13 @@ GetFIT.prototype = {
                 function successCB(data) {
                     openChannel();
                 });
+
+        else if (this.useContinousScanningChannel) {
+            self.ANT.activateChannelConfiguration(0, function error(err) { console.log("Could not configure continous scanning channel ANT+ ", err); },
+                function successCB(data) {
+                    openChannel();
+                });
+        }
 
         else
             self.ANT.activateChannelConfiguration(0, function error(err) { console.log("Could not configure background scanning for ANT-FS", err); },
