@@ -82,8 +82,27 @@ DeviceProfile_SDM.prototype = {
             timestamp: Date.now()
         };
 
-        var convertToMinPrKM = function (value) {
-            return value * (100 / 6);
+        var convertToMinPrKM = function (speed) {
+            if (speed === 0)
+                return 0;
+            else
+                return 1 / (speed * 60 / 1000);
+        };
+
+        var formatToMMSS = function (speed) {
+            if (speed === 0)
+                return "00:00";
+
+            var minutes = Math.floor(speed);
+            var seconds = parseInt(((speed - minutes) * 60).toFixed(), 10); // implicit rounding
+            if (seconds === 60) {
+                seconds = 0;
+                minutes += 1;
+            }
+
+            var result = (minutes < 10 ? "0" + minutes : minutes) + ":" + (seconds < 10 ? "0" + seconds : seconds);
+
+            return result;
         };
 
         if (typeof this.channelID === "undefined") {
@@ -110,6 +129,8 @@ DeviceProfile_SDM.prototype = {
                 page.strideCount = data[startOfPageIndex + 6];
                 page.updateLatency = data[startOfPageIndex + 7] * (1 / 32); // s
 
+                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+
                 // Time starts when SDM is powered ON
                 msg = page.pageType+ " "+page.dataPageNumber+ " ";
                 if (page.time !== UNUSED)
@@ -123,7 +144,7 @@ DeviceProfile_SDM.prototype = {
                     msg += " Distance : 0"+" m";
 
                 if (page.speed !== UNUSED)
-                    msg += " Speed : " + page.speed.toFixed(1) + " m/s " + convertToMinPrKM(page.speed).toFixed(1) + " min/km";
+                    msg += " Speed : " + page.speed.toFixed(1) + " m/s " + formatToMMSS(convertToMinPrKM(page.speed)) + " min/km";
                 else
                     msg += " Speed : 0" + " m/s";
 
@@ -191,6 +212,8 @@ DeviceProfile_SDM.prototype = {
                     default: page.status.UseStateFriendly = "? " + page.status.UseState; break;
                 }
 
+                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+
 
                 msg = page.pageType + " "+page.dataPageNumber+" ";
                 if (page.cadence !== UNUSED)
@@ -216,6 +239,7 @@ DeviceProfile_SDM.prototype = {
                 page.HWRevision = data[startOfPageIndex + 3];
                 page.manufacturerID = data.readUInt16LE(4);
                 page.modelNumber = data.readUInt16LE(6);
+                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
                 console.log(page.pageType+" "+page.dataPageNumber+ " HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
 
@@ -225,6 +249,8 @@ DeviceProfile_SDM.prototype = {
                 page.pageType = "Background";
                 page.SWRevision = data[startOfPageIndex + 3];
                 page.serialNumber = data.readUInt32LE(4);
+
+                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
                 if (page.serialNumber === 0xFFFFFFFF)
                     console.log(page.pageType+" "+page.dataPageNumber+" SW revision : " + page.SWRevision + " No serial number");
@@ -252,7 +278,10 @@ DeviceProfile_SDM.prototype = {
                 else
                     page.batteryVoltage = page.fractionalBatteryVoltage + page.descriptive.coarseVoltage;
 
+                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+
                 msg = "";
+
                 switch (page.descriptive.batteryStatus) {
                     case 0x00: msg += "Reserved"; break;
                     case 0x01: msg += "New"; break;
