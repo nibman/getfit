@@ -82,6 +82,10 @@ DeviceProfile_SDM.prototype = {
             timestamp: Date.now()
         };
 
+        var convertToMinPrKM = function (value) {
+            return value * (100 / 6);
+        };
+
         if (typeof this.channelID === "undefined") {
             console.log(Date.now(), "No channel ID found for this master, every master has a channel ID, verify that channel ID is set (should be set during parse_response in ANT lib.)");
             console.trace();
@@ -111,17 +115,17 @@ DeviceProfile_SDM.prototype = {
                 if (page.time !== UNUSED)
                     msg += "SDM Time : " + page.time + " s";
                 else
-                    msg += "SDM Time : 0";
+                    msg += "SDM Time : 0"+ " s";
 
                 if (page.distance !== UNUSED)
                     msg += " Distance : " + page.distance + " m";
                 else
-                    msg += " Distance : 0";
+                    msg += " Distance : 0"+" m";
 
                 if (page.speed !== UNUSED)
-                    msg += " Speed : " + page.speed.toFixed(1);
+                    msg += " Speed : " + page.speed.toFixed(1) + " m/s " + convertToMinPrKM(page.speed).toFixed(1) + " min/km";
                 else
-                    msg += " Speed : 0";
+                    msg += " Speed : 0" + " m/s";
 
                 msg += " Stride count : " + page.strideCount;
 
@@ -131,7 +135,7 @@ DeviceProfile_SDM.prototype = {
                 if (page.updateLatency !== UNUSED)
                     msg += " Update latency : " + page.updateLatency + " s";
                 else
-                    msg += " Update latency : 0";
+                    msg += " Update latency : 0"+" s";
 
                 console.log(msg);
 

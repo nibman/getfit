@@ -83,8 +83,10 @@ ContinousScanningChannel.prototype = {
         // console.log(Date.now(), "Continous scanning channel BROADCAST : ", data, this.channelID.toString());
 
         // Create new object for a new master
-        if (typeof this.channelIDCache[this.channelID.toProperty] === "undefined")
+        if (typeof this.channelIDCache[this.channelID.toProperty] === "undefined") {
             this.channelIDCache[this.channelID.toProperty] = {};
+            console.log(Date.now(), "New master", this.channelID.toString());
+        }
 
         switch (this.channelID.deviceTypeID) {
 
