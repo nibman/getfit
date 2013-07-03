@@ -101,7 +101,7 @@ BackgroundScanningChannel.prototype = {
                 // the background channel search will not trigger anymore on this master, but can trigger on same device type.
                 // Only one channel pr. device type is allocated
 
-                console.log(Date.now(), "Found HRM - heart rate monitor - device")
+                console.log(Date.now(), "Found HRM - heart rate monitor - master/sensor")
                 console.log(Date.now(),this.channelID.toString());
 
                 if (configuredChannel(1, this.channelID.deviceTypeID))
@@ -118,7 +118,7 @@ BackgroundScanningChannel.prototype = {
 
             case DeviceProfile_SDM.prototype.DEVICE_TYPE:
 
-                console.log(Date.now(), "Found SDM4 - foot pod - device");
+                console.log(Date.now(), "Found SDM4 - foot pod - master/sensor");
                 console.log(Date.now(), this.channelID.toString());
                 if (configuredChannel(2, this.channelID.deviceTypeID))
                     console.log(Data.now(), "Already configured channel to receive broadcast from device type/SDM");

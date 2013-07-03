@@ -934,6 +934,7 @@ DeviceProfile_ANTFS.prototype = {
 
         structureLength = self.deviceProfile.directory.header.structureLength;
         numberOfFiles = (data.length - 2 * 8) / structureLength;
+
         console.log("Number of files in directory", numberOfFiles);
 
         function getDataSubTypeFriendly(subtype) {
@@ -1099,7 +1100,10 @@ DeviceProfile_ANTFS.prototype = {
 
             file.fileName = getFileName(file)();
             // Drawback : each instance a function -> maybe move to a prototype
-            file.toString = AsString.call(file);
+            //file.toString = AsString.call(file);
+
+            // This should work : file.constructor === function Object, override toString on Object.prototype = {}
+            file.constructor.prototype.toString = AsString.call(file);
 
             console.log(file.toString());
 
@@ -1134,7 +1138,7 @@ DeviceProfile_ANTFS.prototype = {
 
         if (initialRequest === DeviceProfile_ANTFS.prototype.INITIAL_DOWNLOAD_REQUEST.NEW_TRANSFER) {
             if (typeof downloadFinishedCB === "undefined")
-                console.warn(Date.now() + " No callback specified for further processing after download");
+                console.warn(Date.now(),"No callback specified for further processing after download");
 
             self.deviceProfile.request = {
                 timestamp: Date.now(),
