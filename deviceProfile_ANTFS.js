@@ -200,6 +200,10 @@ DeviceProfile_ANTFS.prototype = {
         0x03 : "busy"
     },
 
+    FILE_TYPE : {
+        FIT : 0x80
+    },
+
     setHomeDirectory: function (homeDir) {
         var self = this; // Keep our this reference in callbacks please!
 
@@ -988,7 +992,7 @@ DeviceProfile_ANTFS.prototype = {
 
 
         function getFileName(myFile) {
-            if (myFile.dataType === 0x80)
+            if (myFile.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT)
                 return function () { return myFile.dataTypeFriendly + "-" + myFile.dataSubTypeFriendly + "-" + myFile.index + "-" + getDateAsString(myFile.date, true) + ".FIT"; };
             else
                 return function () { return myFile.dataTypeFriendly + "-" + getDateAsString(myFile.date) + "-" + myFile.index + ".BIN"; };
@@ -1036,7 +1040,7 @@ DeviceProfile_ANTFS.prototype = {
             if (this.dataType <= 0x0F)
                 dataType += " Manufacturer/Device";
 
-            if (this.dataType === 0x80) {
+            if (this.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT) {
 
                 if (this.number !== 0xFFFF)
                     number = this.dataSubType;
@@ -1086,7 +1090,7 @@ DeviceProfile_ANTFS.prototype = {
 
             totalBytesInDirectory += file.size;
 
-            if (file.dataType === 0x80) // FIT 
+            if (file.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT) 
             {
                 file.dataTypeFriendly = 'FIT';
                 file.dataSubType = data[19 + addIndex];

@@ -3,6 +3,7 @@
 var DeviceProfile = require('./deviceProfile.js');
 var DeviceProfile_HRM = require('./deviceProfile_HRM.js');
 var DeviceProfile_SDM = require('./deviceProfile_SDM.js');
+var DeviceProfile_SPDCAD = require('./deviceProfile_SPDCAD.js');
 var CRC = require('./crc.js');
 var ANT = require('./ant-lib');
 var fs = require('fs');
@@ -15,6 +16,7 @@ function ContinousScanningChannel(nodeInstance) {
     this.nodeInstance = nodeInstance;
     this.deviceProfile_HRM = new DeviceProfile_HRM(nodeInstance);
     this.deviceProfile_SDM = new DeviceProfile_SDM(nodeInstance);
+    this.deviceProfile_SPDCAD = new DeviceProfile_SPDCAD(nodeInstance);
     
 }
 
@@ -105,6 +107,12 @@ ContinousScanningChannel.prototype = {
               
                 //console.log("CHANNEL SDM", this.deviceProfile.deviceProfile_SDM.channel);
                 this.deviceProfile.deviceProfile_SDM.broadCastDataParser.call(this,data);
+                break;
+
+            case DeviceProfile_SPDCAD.prototype.DEVICE_TYPE:
+                this.deviceProfile.deviceProfile_SPDCAD.channel = this;
+
+                this.deviceProfile.deviceProfile_SPDCAD.broadCastDataParser.call(this, data);
                 break;
 
             default:
