@@ -3,6 +3,7 @@
 var DeviceProfile = require('./deviceProfile.js');
 var DeviceProfile_HRM = require('./deviceProfile_HRM.js');
 var DeviceProfile_SDM = require('./deviceProfile_SDM.js');
+var DeviceProfile_SPDCAD = require('./deviceProfile_SPDCAD.js');
 var CRC = require('./crc.js');
 var ANT = require('./ant-lib');
 var fs = require('fs');
@@ -126,6 +127,19 @@ BackgroundScanningChannel.prototype = {
                     deviceProfile = new DeviceProfile_SDM(this.nodeInstance);
                     openChannel(2);
                 }
+                break;
+
+            case DeviceProfile_SPDCAD.prototype.DEVICE_TYPE:
+
+                console.log(Date.now(), "Found SPDCAD - bike speed/cadence - master/sensor");
+                console.log(Date.now(), this.channelID.toString());
+                if (configuredChannel(3, this.channelID.deviceTypeID))
+                    console.log(Data.now(), "Already configured channel to receive broadcast from device type/SPDCAD");
+                else {
+                    deviceProfile = new DeviceProfile_SPDCAD(this.nodeInstance);
+                    openChannel(3);
+                }
+
                 break;
 
             default:
