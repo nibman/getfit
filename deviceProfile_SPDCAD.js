@@ -101,6 +101,7 @@ DeviceProfile_SPDCAD.prototype = {
         }
 
         prevPage = this.channelIDCache[this.channelID.toProperty].previousPage;
+        page.previousPage = prevPage;
 
         //if (prevPage)
         //  console.log(prevPage.bikeCadenceEventTime, page.bikeCadenceEventTime);
@@ -119,6 +120,7 @@ DeviceProfile_SPDCAD.prototype = {
             else
                 page.measurementCadenceTimeDifference = page.bikeCadenceEventTime - prevPage.bikeCadenceEventTime;
 
+            
             if (rollOverCadenceRevolution)
                 page.revolutionCadenceCountDifference = (0xFFFF - prevPage.cumulativeCadenceRevolutionCount) + page.cumulativeCadenceRevolutionCount;
             else
@@ -138,7 +140,7 @@ DeviceProfile_SPDCAD.prototype = {
                 measurementSpeedTimeDifference;
 
             if (rollOverSpeedTime)
-                page.measurementSpeedTimeDifference = (0xFFFF - prevPage.bikeCadenceEventTime) + page.bikeCadenceEventTime;
+                page.measurementSpeedTimeDifference = (0xFFFF - prevPage.bikeSpeedEventTime) + page.bikeSpeedEventTime;
             else
                 page.measurementSpeedTimeDifference = page.bikeSpeedEventTime - prevPage.bikeSpeedEventTime;
 

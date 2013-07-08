@@ -211,7 +211,7 @@ GetFIT.prototype = {
         // http://thomashunter.name/blog/gracefully-kill-node-js-app-from-ctrl-c/
 
         process.on('SIGINT', function sigint() {
-            console.log(Date.now() + " User requested process interruption - signal SIGINT (Ctrl+C)");
+            console.log(Date.now() + " Process interrupted - signal SIGINT (Ctrl+C)");
 
             // TO DO:  self.deviceProfile_ANTFS.sendDisconnect.call(self); // Disconnect
 
@@ -315,7 +315,7 @@ GetFIT.prototype = {
         });
 
         self.wss.on('connection', function (ws) {
-            console.log(Date.now() + " WebSocketServer: New client connected - will receive broadcast data");
+            console.log(Date.now()," WebSocketServer: New client connected - will receive broadcast data at "+ws.upgradeReq.headers.origin,ws.upgradeReq.url);
             // console.log(ws);
             //self.websockets.push(ws); // Keeps track of all incoming websocket clients
 
