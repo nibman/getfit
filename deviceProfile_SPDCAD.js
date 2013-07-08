@@ -60,10 +60,16 @@ DeviceProfile_SPDCAD.prototype = {
 
          page = {
 
+             // Time of last valid bike cadence event
              bikeCadenceEventTime: data.readUInt16LE(startOfPageIndex), // 1/1024 seconds - rollover 64 seconds
-             cumulativeCadenceRevolutionCount: data[startOfPageIndex + 2], // Rollover 65535
 
+             // Total number of pedal revolutions
+             cumulativeCadenceRevolutionCount: data[startOfPageIndex + 2], // Rollover 65535
+            
+             // Time of last valid bike speed event
              bikeSpeedEventTime: data.readUInt16LE(startOfPageIndex + 4), // 1/1024 seconds - rollover 64 seconds
+
+             // Total number of speed revolution
              cumulativeSpeedRevolutionCount: data.readUInt16LE(startOfPageIndex + 6)
          };
 
@@ -106,57 +112,68 @@ DeviceProfile_SPDCAD.prototype = {
         //if (prevPage)
         //  console.log(prevPage.bikeCadenceEventTime, page.bikeCadenceEventTime);
 
-        if (prevPage && prevPage.bikeCadenceEventTime !== page.bikeCadenceEventTime) {  // Filter out identical messages, i.e crank revolving slowly
-            
-            // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+        var timestampDifference = page.timestamp - prevPage.timestamp,
+                numberOfEventTimeRollovers = Math.floor(timestampDifference / 64000);  // 64 seconds pr. rollover
 
-            var rollOverCadenceTime = (prevPage.bikeCadenceEventTime > page.bikeCadenceEventTime) ? true : false,
-                rollOverCadenceRevolution = (prevPage.cumulativeCadenceRevolutionCount > page.cumulativeCadenceRevolutionCount) ? true : false,
-                revolutionCountDifference,
-                measurementTimeDifference;
+        if (numberOfEventTimeRollovers >= 1)
+            console.log(Date.now(), "There are", numberOfEventTimeRollovers, " rollovers (lasting 64 s.) for bike cadence/speed event time. Choosing to skip this gap in the data.");
+        else {
 
-            if (rollOverCadenceTime)
-                page.measurementCadenceTimeDifference = (0xFFFF - prevPage.bikeCadenceEventTime) + page.bikeCadenceEventTime;
-            else
-                page.measurementCadenceTimeDifference = page.bikeCadenceEventTime - prevPage.bikeCadenceEventTime;
+            if (prevPage && prevPage.cumulativeCadenceRevolutionCount !== page.cumulativeCadenceRevolutionCount) {  // Filter out identical messages, i.e crank revolving slowly
 
-            
-            if (rollOverCadenceRevolution)
-                page.revolutionCadenceCountDifference = (0xFFFF - prevPage.cumulativeCadenceRevolutionCount) + page.cumulativeCadenceRevolutionCount;
-            else
-                page.revolutionCadenceCountDifference = page.cumulativeCadenceRevolutionCount - prevPage.cumulativeCadenceRevolutionCount;
+                // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
 
-            page.cadence = 60 * page.revolutionCadenceCountDifference * 1024 / page.measurementCadenceTimeDifference;
-           
-        }
+                var rollOverCadenceTime = (prevPage.bikeCadenceEventTime > page.bikeCadenceEventTime) ? true : false,
+                    rollOverCadenceRevolution = (prevPage.cumulativeCadenceRevolutionCount > page.cumulativeCadenceRevolutionCount) ? true : false,
+                    revolutionCountDifference,
+                    measurementTimeDifference;
 
-        if (prevPage && prevPage.bikeSpeedEventTime !== page.bikeSpeedEventTime) {  // Filter out identical messages, i.e wheel revolving slowly
-            
-            // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+                if (rollOverCadenceRevolution)
+                    page.revolutionCadenceCountDifference = (0xFFFF - prevPage.cumulativeCadenceRevolutionCount) + page.cumulativeCadenceRevolutionCount;
+                else
+                    page.revolutionCadenceCountDifference = page.cumulativeCadenceRevolutionCount - prevPage.cumulativeCadenceRevolutionCount;
 
-            var rollOverSpeedTime = (prevPage.bikeSpeedEventTime > page.bikeSpeedEventTime) ? true : false,
-                rollOverSpeedRevolution = (prevPage.cumulativeSpeedRevolutionCount > page.cumulativeSpeedRevolutionCount) ? true : false,
-                revolutionSpeedCountDifference,
-                measurementSpeedTimeDifference;
+                // Check for number of rollovers in 64 seconds by using timestamp 
 
-            if (rollOverSpeedTime)
-                page.measurementSpeedTimeDifference = (0xFFFF - prevPage.bikeSpeedEventTime) + page.bikeSpeedEventTime;
-            else
-                page.measurementSpeedTimeDifference = page.bikeSpeedEventTime - prevPage.bikeSpeedEventTime;
+                if (rollOverCadenceTime)
+                    page.measurementCadenceTimeDifference = (0xFFFF - prevPage.bikeCadenceEventTime) + page.bikeCadenceEventTime;
+                else
+                    page.measurementCadenceTimeDifference = page.bikeCadenceEventTime - prevPage.bikeCadenceEventTime;
 
-            if (rollOverSpeedRevolution)
-                page.revolutionSpeedCountDifference = (0xFFFF - prevPage.cumulativeSpeedRevolutionCount) + page.cumulativeSpeedRevolutionCount;
-            else
-                page.revolutionSpeedCountDifference = page.cumulativeSpeedRevolutionCount - prevPage.cumulativeSpeedRevolutionCount;
 
-            // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 20
+                page.cadence = 60 * page.revolutionCadenceCountDifference * 1024 / page.measurementCadenceTimeDifference;
 
-            page.speed = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference * 1024 / page.measurementSpeedTimeDifference;
+            }
 
-            // accumulated distance between measurements
-            page.wheelCircumference = DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE;
-            page.accumulatedDistance = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference;
+            if (prevPage && prevPage.bikeSpeedEventTime !== page.bikeSpeedEventTime) {  // Filter out identical messages, i.e wheel revolving slowly
 
+                // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+
+                var rollOverSpeedTime = (prevPage.bikeSpeedEventTime > page.bikeSpeedEventTime) ? true : false,
+                    rollOverSpeedRevolution = (prevPage.cumulativeSpeedRevolutionCount > page.cumulativeSpeedRevolutionCount) ? true : false,
+                    revolutionSpeedCountDifference,
+                    measurementSpeedTimeDifference;
+
+                if (rollOverSpeedTime)
+                    page.measurementSpeedTimeDifference = (0xFFFF - prevPage.bikeSpeedEventTime) + page.bikeSpeedEventTime;
+                else
+                    page.measurementSpeedTimeDifference = page.bikeSpeedEventTime - prevPage.bikeSpeedEventTime;
+
+                if (rollOverSpeedRevolution)
+                    page.revolutionSpeedCountDifference = (0xFFFF - prevPage.cumulativeSpeedRevolutionCount) + page.cumulativeSpeedRevolutionCount;
+                else
+                    page.revolutionSpeedCountDifference = page.cumulativeSpeedRevolutionCount - prevPage.cumulativeSpeedRevolutionCount;
+
+                // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 20
+
+
+                page.speed = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference * 1024 / page.measurementSpeedTimeDifference;
+
+                // accumulated distance between measurements
+                page.wheelCircumference = DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE;
+                page.accumulatedDistance = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference;
+
+            }
         }
 
         if (page.cadence || page.speed) {
