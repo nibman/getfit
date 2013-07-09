@@ -14,13 +14,13 @@ DeviceProfile_SPDCAD.constructor = DeviceProfile_SPDCAD;  // Update constructor
 
 DeviceProfile_SPDCAD.prototype = {
 
-    NAME : 'SPDCAD',
+    NAME: 'SPDCAD',
 
     DEVICE_TYPE: 0x79, // 121
 
     CHANNEL_PERIOD: 8086,
 
-    WHEEL_CIRCUMFERENCE : 2096, // in mm. -> should be able to configure in a file...
+    WHEEL_CIRCUMFERENCE: 2096, // in mm. -> should be able to configure in a file...
 
     getSlaveChannelConfiguration: function (networkNr, channelNr, deviceNr, transmissionType, searchTimeout) {
 
@@ -46,7 +46,7 @@ DeviceProfile_SPDCAD.prototype = {
     },
 
     broadCastDataParser: function (data) {
-       // console.log(Date.now() + " SPDCAD broad cast data ", data);
+        // console.log(Date.now() + " SPDCAD broad cast data ", data);
 
         var receivedTimestamp = Date.now(),
            self = this,// Will be cannel configuration
@@ -65,13 +65,16 @@ DeviceProfile_SPDCAD.prototype = {
 
              // Total number of pedal revolutions
              cumulativeCadenceRevolutionCount: data[startOfPageIndex + 2], // Rollover 65535
-            
+
              // Time of last valid bike speed event
              bikeSpeedEventTime: data.readUInt16LE(startOfPageIndex + 4), // 1/1024 seconds - rollover 64 seconds
 
              // Total number of speed revolution
              cumulativeSpeedRevolutionCount: data.readUInt16LE(startOfPageIndex + 6)
-         };
+         },
+
+         timestampDifference,
+         numberOfEventTimeRollovers = 0;  // # of 64 seconds rollovers for cadence/speed event time
 
         // Add header
         page.dataPageNumber = dataPageNumber, // Combined cadence/speed only has page 0 
@@ -79,14 +82,14 @@ DeviceProfile_SPDCAD.prototype = {
         //deviceType: DeviceProfile_HRM.prototype.DEVICE_TYPE,  // Should make it possible to classify which sensors data comes from
         page.channelID = this.channelID,  // Channel ID is already contained in data, but its already parsed in the ANT library (parse_response func.)
 
-        page.constructor.prototype.toString = function () {
-            var msg =  "Cadence event time " + this.bikeCadenceEventTime / 1024 + " s" +
+        page.toString = function () {
+            var msg = "Cadence event time " + this.bikeCadenceEventTime / 1024 + " s" +
                 " Count " + this.cumulativeCadenceRevolutionCount +
                 " Speed event time " + this.bikeSpeedEventTime / 1024 + " s" +
                 " Count " + this.cumulativeSpeedRevolutionCount;
 
             if (this.cadence)
-                msg += " Cadence " + this.cadence.toFixed(0) +" RPM";
+                msg += " Cadence " + this.cadence.toFixed(0) + " RPM";
 
             if (this.speed)
                 msg += " Speed " + this.speed.toFixed(2) + " m/s";
@@ -101,28 +104,30 @@ DeviceProfile_SPDCAD.prototype = {
             console.log(Date.now(), "No channel ID found for this master, every master has a channel ID, verify that channel ID is set (should be set during parse_response in ANT lib.)");
 
         if (typeof this.channelIDCache[this.channelID.toProperty] === "undefined") {
-            console.log(Date.now(), "Creating object in channelIDCache to store previous page for master with channel Id", this.channelID);
+            //console.log(Date.now(), "Creating object in channelIDCache to store previous page for master with channel Id", this.channelID);
             this.channelIDCache[this.channelID.toProperty] = {};
-
         }
 
-        prevPage = this.channelIDCache[this.channelID.toProperty].previousPage;
-        page.previousPage = prevPage;
+        // Initialize previous page for cadence/speed
+        if (typeof this.channelIDCache[this.channelID.toProperty].previousCadencePage === "undefined") 
+            this.channelIDCache[this.channelID.toProperty].previousCadencePage = page;
 
-        //if (prevPage)
-        //  console.log(prevPage.bikeCadenceEventTime, page.bikeCadenceEventTime);
+        if (typeof this.channelIDCache[this.channelID.toProperty].previousSpeedPage === "undefined")
+            this.channelIDCache[this.channelID.toProperty].previousSpeedPage = page;
 
-        var timestampDifference = page.timestamp - prevPage.timestamp,
-                numberOfEventTimeRollovers = Math.floor(timestampDifference / 64000);  // 64 seconds pr. rollover
+        prevPage = this.channelIDCache[this.channelID.toProperty].previousCadencePage;
 
-        if (numberOfEventTimeRollovers >= 1)
-            console.log(Date.now(), "There are", numberOfEventTimeRollovers, " rollovers (lasting 64 s.) for bike cadence/speed event time. Choosing to skip this gap in the data.");
-        else {
+        if (prevPage && prevPage.cumulativeCadenceRevolutionCount !== page.cumulativeCadenceRevolutionCount) {  // Filter out identical messages, i.e crank revolving slowly
 
-            if (prevPage && prevPage.cumulativeCadenceRevolutionCount !== page.cumulativeCadenceRevolutionCount) {  // Filter out identical messages, i.e crank revolving slowly
+            // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+            timestampDifference = page.timestamp - prevPage.timestamp,
 
-                // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+            numberOfEventTimeRollovers = Math.floor(timestampDifference / 64000);  // 64 seconds pr. rollover
+            //console.log("Timestamp difference between change in cadence revolution is ", timestampDifference, "ms", "Event time rollovers", numberOfEventTimeRollovers);
 
+            if (numberOfEventTimeRollovers >= 1)
+                console.log(Date.now(), "There are", numberOfEventTimeRollovers, " rollovers (lasting 64 s.) for bike cadence/speed event time. Choosing to skip this gap in the data.");
+            else {
                 var rollOverCadenceTime = (prevPage.bikeCadenceEventTime > page.bikeCadenceEventTime) ? true : false,
                     rollOverCadenceRevolution = (prevPage.cumulativeCadenceRevolutionCount > page.cumulativeCadenceRevolutionCount) ? true : false,
                     revolutionCountDifference,
@@ -140,15 +145,27 @@ DeviceProfile_SPDCAD.prototype = {
                 else
                     page.measurementCadenceTimeDifference = page.bikeCadenceEventTime - prevPage.bikeCadenceEventTime;
 
-
                 page.cadence = 60 * page.revolutionCadenceCountDifference * 1024 / page.measurementCadenceTimeDifference;
 
             }
 
-            if (prevPage && prevPage.bikeSpeedEventTime !== page.bikeSpeedEventTime) {  // Filter out identical messages, i.e wheel revolving slowly
+            this.channelIDCache[this.channelID.toProperty].previousCadencePage = page;
+        }
 
-                // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+        prevPage = this.channelIDCache[this.channelID.toProperty].previousSpeedPage;
 
+        if (prevPage && prevPage.cumulativeSpeedRevolutionCount !== page.cumulativeSpeedRevolutionCount) {  // Filter out identical messages, i.e wheel revolving slowly
+
+            // ANT+ Managed Network Document - Bike Speed and Cadence Device Profile , p. 29
+
+            timestampDifference = page.timestamp - prevPage.timestamp,
+
+           numberOfEventTimeRollovers = Math.floor(timestampDifference / 64000);  // 64 seconds pr. rollover
+            //console.log("Timestamp difference between change in cadence revolution is ", timestampDifference, "ms", "Event time rollovers", numberOfEventTimeRollovers);
+
+            if (numberOfEventTimeRollovers >= 1)
+                console.log(Date.now(), "There are", numberOfEventTimeRollovers, " rollovers (lasting 64 s.) for bike cadence/speed event time. Choosing to skip this gap in the data.");
+            else {
                 var rollOverSpeedTime = (prevPage.bikeSpeedEventTime > page.bikeSpeedEventTime) ? true : false,
                     rollOverSpeedRevolution = (prevPage.cumulativeSpeedRevolutionCount > page.cumulativeSpeedRevolutionCount) ? true : false,
                     revolutionSpeedCountDifference,
@@ -172,19 +189,21 @@ DeviceProfile_SPDCAD.prototype = {
                 // accumulated distance between measurements
                 page.wheelCircumference = DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE;
                 page.accumulatedDistance = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference;
-
             }
+
+            this.channelIDCache[this.channelID.toProperty].previousSpeedPage = page;
         }
+
 
         if (page.cadence || page.speed) {
             console.log(Date.now(), page.toString());
             this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
         }
 
-        this.channelIDCache[this.channelID.toProperty].previousPage = page;
-
-            //console.log(Date.now(), page);
        
+
+        //console.log(Date.now(), page);
+
     }
 };
 

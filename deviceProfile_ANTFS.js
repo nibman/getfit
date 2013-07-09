@@ -990,15 +990,43 @@ DeviceProfile_ANTFS.prototype = {
             return dateStr;
         }
 
+        function FileOnDevice(fdata,faddIndex) {
+            this.buffer = fdata.slice(16 + faddIndex, 16 + faddIndex + structureLength);
+            this.index = fdata.readUInt16LE(16 + faddIndex);
+            this.dataType = fdata[18 + faddIndex];
+            this.identifier = fdata.readUInt32LE(19 + faddIndex) & 0x00FFFFFF;
+            this.dataTypeFlags = fdata[22 + faddIndex];
+            this.generalFlags = {
+                read: fdata[23 + faddIndex] & 0x80 ? true : false,
+                write: fdata[23 + faddIndex] & 0x40 ? true : false,
+                erase: fdata[23 + faddIndex] & 0x20 ? true : false,
+                archive: fdata[23 + faddIndex] & 0x10 ? true : false,
+                append: fdata[23 + faddIndex] & 0x08 ? true : false,
+                crypto: fdata[23 + faddIndex] & 0x04 ? true : false,
+                //reserved bit 0-1
+            };
+            this.size = fdata.readUInt32LE(24 + faddIndex);
+            this.date = fdata.readUInt32LE(28 + faddIndex);
 
-        function getFileName(myFile) {
-            if (myFile.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT)
-                return function () { return myFile.dataTypeFriendly + "-" + myFile.dataSubTypeFriendly + "-" + myFile.index + "-" + getDateAsString(myFile.date, true) + ".FIT"; };
-            else
-                return function () { return myFile.dataTypeFriendly + "-" + getDateAsString(myFile.date) + "-" + myFile.index + ".BIN"; };
+            if (this.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT) {
+                this.dataTypeFriendly = 'FIT';
+                this.dataSubType = fdata[19 + faddIndex];
+                this.dataSubTypeFriendly = getDataSubTypeFriendly(fdata[19 + faddIndex]);
+                this.number = fdata.readUInt16LE(20 + faddIndex);
+            } else
+                this.dataTypeFriendly = 'Datatype-' + this.dataType.toString();
+
+            this.fileName = this.getFileName();
         }
 
-        function AsString() {
+        FileOnDevice.prototype.getFileName = function () {
+            if (this.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT)
+                return  this.dataTypeFriendly + "-" + this.dataSubTypeFriendly + "-" + this.index + "-" + getDateAsString(this.date, true) + ".FIT";
+            else
+                return this.dataTypeFriendly + "-" + getDateAsString(this.date) + "-" + this.index + ".BIN"; 
+        }
+
+        FileOnDevice.prototype.toString = function () {
             var generalFlags = "", dataType = this.dataType, date = "", number = "", dataTypeFlags = "",
                 dataSubType = "";
 
@@ -1052,31 +1080,33 @@ DeviceProfile_ANTFS.prototype = {
                 dataType += " " + this.dataTypeFriendly + " " + dataSubType;
             }
             // (Skip this.identifier in output->not useful)
-            return function () { return "Index " + this.index + " " + dataType + " " + dataTypeFlags + " " + generalFlags + " " + this.size + " " + date; };
+            return  "Index " + this.index + " " + dataType + " " + dataTypeFlags + " " + generalFlags + " " + this.size + " " + date; 
         }
 
         for (fileNr = 0; fileNr < numberOfFiles; fileNr++) {
 
             addIndex = fileNr * structureLength;
 
-            file = {
-                buffer: data.slice(16 + addIndex, 16 + addIndex + structureLength),
-                index: data.readUInt16LE(16 + addIndex),
-                dataType: data[18 + addIndex],
-                identifier: data.readUInt32LE(19 + addIndex) & 0x00FFFFFF,
-                dataTypeFlags: data[22 + addIndex],
-                generalFlags: {
-                    read: data[23 + addIndex] & 0x80 ? true : false,
-                    write: data[23 + addIndex] & 0x40 ? true : false,
-                    erase: data[23 + addIndex] & 0x20 ? true : false,
-                    archive: data[23 + addIndex] & 0x10 ? true : false,
-                    append: data[23 + addIndex] & 0x08 ? true : false,
-                    crypto: data[23 + addIndex] & 0x04 ? true : false,
-                    //reserved bit 0-1
-                },
-                size: data.readUInt32LE(24 + addIndex),
-                date: data.readUInt32LE(28 + addIndex)
-            };
+            //file = {
+            //    buffer: data.slice(16 + addIndex, 16 + addIndex + structureLength),
+            //    index: data.readUInt16LE(16 + addIndex),
+            //    dataType: data[18 + addIndex],
+            //    identifier: data.readUInt32LE(19 + addIndex) & 0x00FFFFFF,
+            //    dataTypeFlags: data[22 + addIndex],
+            //    generalFlags: {
+            //        read: data[23 + addIndex] & 0x80 ? true : false,
+            //        write: data[23 + addIndex] & 0x40 ? true : false,
+            //        erase: data[23 + addIndex] & 0x20 ? true : false,
+            //        archive: data[23 + addIndex] & 0x10 ? true : false,
+            //        append: data[23 + addIndex] & 0x08 ? true : false,
+            //        crypto: data[23 + addIndex] & 0x04 ? true : false,
+            //        //reserved bit 0-1
+            //    },
+            //    size: data.readUInt32LE(24 + addIndex),
+            //    date: data.readUInt32LE(28 + addIndex)
+            //};
+
+            file = new FileOnDevice(data, addIndex);
 
             // Update index for new,downloadable,erasable files
             if (!file.generalFlags.archive)
@@ -1090,24 +1120,8 @@ DeviceProfile_ANTFS.prototype = {
 
             totalBytesInDirectory += file.size;
 
-            if (file.dataType === DeviceProfile_ANTFS.prototype.FILE_TYPE.FIT) 
-            {
-                file.dataTypeFriendly = 'FIT';
-                file.dataSubType = data[19 + addIndex];
-                file.dataSubTypeFriendly = getDataSubTypeFriendly(data[19 + addIndex]);
-                file.number = data.readUInt16LE(20 + addIndex);
-            } else
-                file.dataTypeFriendly = 'Datatype-' + file.dataType.toString();
-
             // console.log(file);
             self.deviceProfile.directory.index[file.index] = file;
-
-            file.fileName = getFileName(file)();
-            // Drawback : each instance a function -> maybe move to a prototype
-            //file.toString = AsString.call(file);
-
-            // This should work : file.constructor === function Object, override toString on Object.prototype = {}
-            file.constructor.prototype.toString = AsString.call(file);
 
             console.log(file.toString());
 
