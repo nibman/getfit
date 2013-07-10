@@ -595,15 +595,18 @@ ANT.prototype.parse_extended_message = function (channelNr,data) {
         // Some times RangeError is generated during SIGINT
         try {
             this.channelConfiguration[channelNr].RX_Timestamp = data.readUInt16LE(relativeIndex);
+           
         } catch (err) {
-            console.log("Data length : ", data.length, "relativeIndex", relativeIndex,err);
-            throw err;
+            console.log(Date.now(),"Parsing extended packet info RX_Timestamp Data length : ", data.length, "relativeIndex", relativeIndex,err);
+            //throw err;
         }
+
         if (typeof previous_RX_Timestamp !== "undefined") {
             this.channelConfiguration[channelNr].RX_Timestamp_Difference = this.channelConfiguration[channelNr].RX_Timestamp - previous_RX_Timestamp;
             if (this.channelConfiguration[channelNr].RX_Timestamp_Difference < 0) // Roll over
                 this.channelConfiguration[channelNr].RX_Timestamp_Difference += 0xFFFF;
         }
+        
         //console.log("Timestamp", this.channelConfiguration[channelNr].RX_Timestamp);
     }
 };
