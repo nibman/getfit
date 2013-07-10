@@ -2,7 +2,7 @@ PRE-REQUISITE:
 
   - node.js http://nodejs.org/, tested on v 0.10.xx
   - bindings https://npmjs.org/package/bindings
-  - ANT USB2 Wireless Stick
+  - ANT USB2 Wireless Stick nRF24AP2-8CH-ANT http://www.nordicsemi.com/eng/Products/ANT/nRF24AP2-8CH
   - LIBUSB-drivers, i.e Windows platform : Zadig http://sourceforge.net/projects/libwdi/files/zadig/
   
 DEPENDENT-LIBRARIES
