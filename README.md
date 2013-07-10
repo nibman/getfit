@@ -38,3 +38,5 @@ node getFIT -c
 node getFIT -e 10
 
   erase file at index 10
+  
+Some support for visualizing data from sensors are available using "Live stream" in FITView https://github.com/hkskoglund/FITView or http://fitview.azurewebsites.net
