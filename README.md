@@ -7,8 +7,8 @@ PRE-REQUISITE:
   
 DEPENDENT-LIBRARIES
 
-  - node usb https://github.com/nonolith/node-usb
-  - ws https://github.com/einaros/ws
+  - Interface for LIBUSB - node usb https://github.com/nonolith/node-usb
+  - Websocket - ws https://github.com/einaros/ws
   
 Tested on Windows 8 only, may work on Linux/Mac with recompilation of native libraries
 
