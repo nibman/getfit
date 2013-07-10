@@ -3,6 +3,7 @@ PRE-REQUISITE:
   - node.js http://nodejs.org/, tested on v 0.10.xx
   - bindings https://npmjs.org/package/bindings
   - ANT USB2 Wireless Stick
+  - LIBUSB-drivers, i.e Windows platform : Zadig http://sourceforge.net/projects/libwdi/files/zadig/
   
 DEPENDENT-LIBRARIES
 
