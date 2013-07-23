@@ -6,6 +6,7 @@ var ANT = require('./ant-lib');
 function DeviceProfile_SDM(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
+   // this.connectedSensor = {};
 }
 
 DeviceProfile_SDM.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -58,7 +59,7 @@ DeviceProfile_SDM.prototype = {
     },
 
     broadCastDataParser: function (data) {
-        //console.log("THIS IN BROADCAST DATA PARSER", this);
+       // console.log("THIS IN BROADCAST DATA PARSER", this);
         // console.log(Date.now() + " SDM broadcast data ", data);
         var receivedTimestamp = Date.now(),
           self = this,
@@ -110,6 +111,9 @@ DeviceProfile_SDM.prototype = {
             console.trace();
         }
 
+        //if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty] === "undefined")
+        //   this.deviceProfile.connectedSensor[this.channelID.toProperty] = {}
+
         switch (page.dataPageNumber) {
 
             case 1: // Main page
@@ -119,7 +123,7 @@ DeviceProfile_SDM.prototype = {
                 page.time = page.timeInteger + page.timeFractional;
 
                 page.distanceInteger = data[startOfPageIndex + 3]; // m
-                page.distanceFractional = (data[startOfPageIndex + 4] & 0xF0) * (1 / 16); // Upper 4 bit
+                page.distanceFractional = ((data[startOfPageIndex + 4] & 0xF0) >> 4) * (1 / 16); // Upper 4 bit
                 page.distance = page.distanceInteger + page.distanceFractional;
 
                 page.speedInteger = data[startOfPageIndex + 4] & 0x0F; // lower 4 bit
@@ -129,7 +133,11 @@ DeviceProfile_SDM.prototype = {
                 page.strideCount = data[startOfPageIndex + 6];
                 page.updateLatency = data[startOfPageIndex + 7] * (1 / 32); // s
 
-                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+                // Only transmit new message on socket if strideCount is updated, otherwise duplicate messages can be sent
+                //if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount === "undefined" || this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount != page.strideCount)
+                    this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+               // else console.log("SKIPPED DUPLICATE MSG on web socket");
+                //this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount = page.strideCount;
 
                 // Time starts when SDM is powered ON
                 msg = page.pageType+ " "+page.dataPageNumber+ " ";
@@ -212,7 +220,9 @@ DeviceProfile_SDM.prototype = {
                     default: page.status.UseStateFriendly = "? " + page.status.UseState; break;
                 }
 
-                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+                // Only send data on websocket when SDM is active
+                //if (page.status.UseState === 0x01)
+                  this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
 
                 msg = page.pageType + " "+page.dataPageNumber+" ";
