@@ -6,7 +6,7 @@ var ANT = require('./ant-lib');
 function DeviceProfile_SDM(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
-   // this.connectedSensor = {};
+    this.connectedSensor = {};
 }
 
 DeviceProfile_SDM.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -75,6 +75,13 @@ DeviceProfile_SDM.prototype = {
         //this.channelIDCache[this.channelID.toProperty].testing = "Hello there property value";
         //console.log(this.channelIDCache[this.channelID.toProperty].testing);
 
+        // Issue : sometimes get 252 as deviceID ???
+
+        if (this.channelID.deviceTypeID !== 124) {
+            console.log(Date.now(),"Got broadcast data ",data,"expected device type SDM = 124, but got",this.channelID.deviceTypeID," skipped")
+            return;
+        }
+
         var page = {
             // Header
             dataPageNumber: data[startOfPageIndex] & 0x7F,
@@ -106,18 +113,38 @@ DeviceProfile_SDM.prototype = {
             return result;
         };
 
+        //console.log("Channel ID:",this.channelID.toProperty);
+
         if (typeof this.channelID === "undefined") {
             console.log(Date.now(), "No channel ID found for this master, every master has a channel ID, verify that channel ID is set (should be set during parse_response in ANT lib.)");
             console.trace();
         }
 
-        //if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty] === "undefined")
-        //   this.deviceProfile.connectedSensor[this.channelID.toProperty] = {}
+        if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty] === "undefined") {
+            this.deviceProfile.connectedSensor[this.channelID.toProperty] = {}
+            // Message counters
+            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] = 0;
+            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] = 0;
+            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] = 0;
+            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] = 0;
+            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] = 0;
+        }
+        // With a channel frequency of about 4 Hz messages are received in p1,p1,p2,p2,p1,p1,p2,p2,...
+        // A simple solution would be just to count messages and just send the first page each time
 
         switch (page.dataPageNumber) {
 
             case 1: // Main page
+
+                this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] = 0;
+
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] === 2)
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] = 1;
+                else
+                  this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"]++;
+
                 page.pageType = "Main";
+
                 page.timeFractional = data[startOfPageIndex + 1] * (1 / 200); // s
                 page.timeInteger = data[startOfPageIndex + 2];
                 page.time = page.timeInteger + page.timeFractional;
@@ -134,13 +161,18 @@ DeviceProfile_SDM.prototype = {
                 page.updateLatency = data[startOfPageIndex + 7] * (1 / 32); // s
 
                 // Only transmit new message on socket if strideCount is updated, otherwise duplicate messages can be sent
-                //if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount === "undefined" || this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount != page.strideCount)
-                    this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+                //if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount === "undefined" || this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount != page.strideCount) {
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] === 1)
+                  this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+                   // this.deviceProfile.connectedSensor[this.channelID.toProperty].strideCountWasUpdated = true;
+                //}
+                //else this.deviceProfile.connectedSensor[this.channelID.toProperty].strideCountWasUpdated = false;
+
                // else console.log("SKIPPED DUPLICATE MSG on web socket");
-                //this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount = page.strideCount;
+                this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount = page.strideCount;
 
                 // Time starts when SDM is powered ON
-                msg = page.pageType+ " "+page.dataPageNumber+ " ";
+                msg = this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"]+" "+page.pageType+ " "+page.dataPageNumber+ " ";
                 if (page.time !== UNUSED)
                     msg += "SDM Time : " + page.time + " s";
                 else
@@ -152,7 +184,7 @@ DeviceProfile_SDM.prototype = {
                     msg += " Distance : 0"+" m";
 
                 if (page.speed !== UNUSED)
-                    msg += " Speed : " + page.speed.toFixed(1) + " m/s " + formatToMMSS(convertToMinPrKM(page.speed)) + " min/km";
+                    msg += " Speed : " + page.speed.toFixed(1) + " m/s " + " - "+formatToMMSS(convertToMinPrKM(page.speed)) + " min/km";
                 else
                     msg += " Speed : 0" + " m/s";
 
@@ -166,15 +198,23 @@ DeviceProfile_SDM.prototype = {
                 else
                     msg += " Update latency : 0"+" s";
 
-                console.log(msg);
+                console.log(Date.now() + " " + msg);
 
                 break;
 
             case 2: // Base template 
 
+                this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] = 0;
+
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] === 2)
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] = 1;
+                else
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"]++;
+
                 page.pageType = "Background";
-                page.cadenceInteger = data[startOfPageIndex + 3] * (1 / 200); // s
-                page.cadenceFractional = (data[startOfPageIndex + 4] & 0xF0) * (1 / 16);
+
+                page.cadenceInteger = data[startOfPageIndex + 3] 
+                page.cadenceFractional = ((data[startOfPageIndex + 4] & 0xF0) >> 4) * (1 / 16);
                 page.cadence = page.cadenceInteger + page.cadenceFractional;
 
                 page.speedInteger = data[startOfPageIndex + 4] & 0x0F; // lower 4 bit
@@ -222,10 +262,13 @@ DeviceProfile_SDM.prototype = {
 
                 // Only send data on websocket when SDM is active
                 //if (page.status.UseState === 0x01)
+
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] === 1)
                   this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
 
-                msg = page.pageType + " "+page.dataPageNumber+" ";
+                msg = this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] + " " + page.pageType + " " + page.dataPageNumber + " ";
+
                 if (page.cadence !== UNUSED)
                     msg += "Cadence : " + page.cadence.toFixed(1) + " strides/min ";
                 else
@@ -239,38 +282,60 @@ DeviceProfile_SDM.prototype = {
 
                 msg += " Location: " + page.status.SDMLocationFriendly + " Battery: " + page.status.BatteryStatusFriendly + " Health: " + page.status.SDMHealthFriendly + " State: " + page.status.UseStateFriendly;
 
-                console.log(msg);
+                console.log(Date.now() + " " + msg);
 
                 break;
 
 
             case 0x50: // 80 Common data page - Manufactorer's identification - REQUIRED - sent every 65 messages
+
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] === 2)
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] = 1;
+                else
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"]++;
+
                 page.pageType = "Background";
                 page.HWRevision = data[startOfPageIndex + 3];
                 page.manufacturerID = data.readUInt16LE(4);
                 page.modelNumber = data.readUInt16LE(6);
-                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
-                console.log(page.pageType+" "+page.dataPageNumber+ " HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
+                // Seems like only 1 page is sent each time
+               // if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] === 1)
+                 this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+
+                console.log(Date.now() + " " + this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] + " " + page.pageType + " " + page.dataPageNumber + " HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
 
                 break;
 
             case 0x51: // 81 Common data page - Product information - REQUIRED - sent every 65 messages
+
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] === 2)
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] = 1;
+                else
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"]++;
+
                 page.pageType = "Background";
                 page.SWRevision = data[startOfPageIndex + 3];
                 page.serialNumber = data.readUInt32LE(4);
 
-                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+                //if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] === 1)
+                  this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
                 if (page.serialNumber === 0xFFFFFFFF)
-                    console.log(page.pageType+" "+page.dataPageNumber+" SW revision : " + page.SWRevision + " No serial number");
+                    console.log(Date.now() + " " + this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] + " " + page.pageType + " " + page.dataPageNumber + " SW revision : " + page.SWRevision + " No serial number");
                 else
-                    console.log(page.pageType+" "+page.dataPageNumber+" SW revision : " + page.SWRevision + " Serial number: " + page.serialNumber);
+                    console.log(Date.now() + " " + this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] + " " + page.pageType + " " + page.dataPageNumber + " SW revision : " + page.SWRevision + " Serial number: " + page.serialNumber);
 
                 break;
 
             case 0x52: // 82 Common data page - Battery Status
                 //console.log("Battery status : ",data);
+
+                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] === 2)
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] = 1;
+                else
+                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"]++;
+
                 page.pageType = "Background";
                 page.descriptive = {
                     coarseVoltage: data[startOfPageIndex + 7] & 0x0F,        // Bit 0-3
@@ -288,7 +353,8 @@ DeviceProfile_SDM.prototype = {
                 else
                     page.batteryVoltage = page.fractionalBatteryVoltage + page.descriptive.coarseVoltage;
 
-                this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
+                //if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] === 1)
+                  this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
                 msg = "";
 
@@ -313,7 +379,7 @@ DeviceProfile_SDM.prototype = {
                         return ""+voltage;
                 }
 
-                console.log(page.pageType + " "+page.dataPageNumber+" Cumulative operating time (s): " + page.cumulativeOperatingTime + " Battery (V) " + batteryVoltageToString(page.batteryVoltage) + " Battery status: " + msg);
+                console.log(Date.now()+" "+this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] + " " + page.pageType + " " + page.dataPageNumber + " Cumulative operating time (s): " + page.cumulativeOperatingTime + " Battery (V) " + batteryVoltageToString(page.batteryVoltage) + " Battery status: " + msg);
                 break;
 
             default:
