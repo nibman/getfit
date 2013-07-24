@@ -76,9 +76,12 @@ DeviceProfile_SDM.prototype = {
         //console.log(this.channelIDCache[this.channelID.toProperty].testing);
 
         // Issue : sometimes get 252 as deviceID ???
+        // Number(252).toString(2) gives 11111100
+        // Number(124).toString(2) gives 01111100
+        // Seems like a bit error on the most significant bit
 
         if (this.channelID.deviceTypeID !== 124) {
-            console.log(Date.now(),"Got broadcast data ",data,"expected device type SDM = 124, but got",this.channelID.deviceTypeID," skipped")
+            console.log(Date.now(),"Got broadcast data ",data,"expected device type SDM ",Number(124).toString(2)," but got ",Number(this.channelID.deviceTypeID).toString(2)," skipped")
             return;
         }
 
@@ -162,7 +165,7 @@ DeviceProfile_SDM.prototype = {
 
                 // Only transmit new message on socket if strideCount is updated, otherwise duplicate messages can be sent
                 //if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount === "undefined" || this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount != page.strideCount) {
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] === 1)
+                //if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] === 1)
                   this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
                    // this.deviceProfile.connectedSensor[this.channelID.toProperty].strideCountWasUpdated = true;
                 //}
@@ -263,7 +266,7 @@ DeviceProfile_SDM.prototype = {
                 // Only send data on websocket when SDM is active
                 //if (page.status.UseState === 0x01)
 
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] === 1)
+                //if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] === 1)
                   this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
 
