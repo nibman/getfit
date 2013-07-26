@@ -145,7 +145,7 @@ DeviceProfile_SPDCAD.prototype = {
                 else
                     page.measurementCadenceTimeDifference = page.bikeCadenceEventTime - prevPage.bikeCadenceEventTime;
 
-                page.cadence = 60 * page.revolutionCadenceCountDifference * 1024 / page.measurementCadenceTimeDifference;
+                page.cadence = 60 * page.revolutionCadenceCountDifference * 1024 / page.measurementCadenceTimeDifference; // RPM
 
             }
 
@@ -160,7 +160,7 @@ DeviceProfile_SPDCAD.prototype = {
 
             timestampDifference = page.timestamp - prevPage.timestamp,
 
-           numberOfEventTimeRollovers = Math.floor(timestampDifference / 64000);  // 64 seconds pr. rollover
+           numberOfEventTimeRollovers = Math.floor(timestampDifference / 64000);  // 64 seconds pr. rollover for bike speed/cadence event time
             //console.log("Timestamp difference between change in cadence revolution is ", timestampDifference, "ms", "Event time rollovers", numberOfEventTimeRollovers);
 
             if (numberOfEventTimeRollovers >= 1)
@@ -187,8 +187,8 @@ DeviceProfile_SPDCAD.prototype = {
                 page.speed = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference * 1024 / page.measurementSpeedTimeDifference;
 
                 // accumulated distance between measurements
-                page.wheelCircumference = DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE;
-                page.accumulatedDistance = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference;
+                page.defaultWheelCircumference = DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE;
+                page.defaultAccumulatedDistance = (DeviceProfile_SPDCAD.prototype.WHEEL_CIRCUMFERENCE / 1000) * page.revolutionSpeedCountDifference;
             }
 
             this.channelIDCache[this.channelID.toProperty].previousSpeedPage = page;
