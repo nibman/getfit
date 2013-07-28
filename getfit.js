@@ -6,7 +6,7 @@ var
     //fs = require('fs'),
     util = require('util'),
     events = require('events'),
-    ANT = require('./ant-lib'),
+    ANT = require('ant-lib'),
     DeviceProfile_HRM = require('./deviceProfile_HRM.js'),
     DeviceProfile_SDM = require('./deviceProfile_SDM.js'),
     DeviceProfile_ANTFS = require('./deviceProfile_ANTFS.js'),
@@ -164,6 +164,8 @@ GetFIT.prototype = {
     broadCastOnWebSocket:  function (data) {
          var self = this;
 
+         //console.log(self.wss);
+
          if (typeof self.wss === "undefined") {
              console.warn(Date.now()+" WEBSOCKET: no websocket server available on "+GetFIT.prototype.WEBSOCKET_HOST+":"+GetFIT.prototype.WEBSOCKET_PORT," broadcast failed ", data);
              return;
@@ -175,6 +177,7 @@ GetFIT.prototype = {
              if (typeof self.wss.clients !== "undefined" && self.wss.clients[clientNr] !== "undefined") // Just to make sure we have clientTracking and client is present
              {
                  //console.log("Sending data to client nr. ", clientNr, "data:",data);
+                 //console.log(self.wss.clients[clientNr]);
                  self.wss.clients[clientNr].send(data);
              } else
                  console.warn("Found no clients to send data to, is websocket server operative?");

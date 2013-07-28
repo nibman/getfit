@@ -1,7 +1,7 @@
 var DeviceProfile = require('./deviceProfile.js');
 var Channel = require('./channel.js');
 var Network = require('./network.js');
-var ANT = require('./ant-lib');
+var ANT = require('ant-lib');
 
 function DeviceProfile_HRM(nodeInstance) {
     DeviceProfile.call(this, nodeInstance); // Call parent

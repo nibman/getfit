@@ -1,12 +1,12 @@
 var DeviceProfile = require('./deviceProfile.js');
 var Channel = require('./channel.js');
 var Network = require('./network.js');
-var ANT = require('./ant-lib');
+var ANT = require('ant-lib');
 
 function DeviceProfile_SDM(nodeInstance) {
     DeviceProfile.call(this); // Call parent
     this.nodeInstance = nodeInstance;
-    this.connectedSensor = {};
+    
 }
 
 DeviceProfile_SDM.protype = DeviceProfile.prototype;  // Inherit properties/methods
@@ -59,7 +59,7 @@ DeviceProfile_SDM.prototype = {
     },
 
     broadCastDataParser: function (data) {
-       // console.log("THIS IN BROADCAST DATA PARSER", this);
+        //console.log("THIS IN BROADCAST DATA PARSER", this);
         // console.log(Date.now() + " SDM broadcast data ", data);
         var receivedTimestamp = Date.now(),
           self = this,
@@ -123,15 +123,7 @@ DeviceProfile_SDM.prototype = {
             console.trace();
         }
 
-        if (typeof this.deviceProfile.connectedSensor[this.channelID.toProperty] === "undefined") {
-            this.deviceProfile.connectedSensor[this.channelID.toProperty] = {}
-            // Message counters
-            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] = 0;
-            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] = 0;
-            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] = 0;
-            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] = 0;
-            this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] = 0;
-        }
+        
         // With a channel frequency of about 4 Hz messages are received in p1,p1,p2,p2,p1,p1,p2,p2,...
         // A simple solution would be just to count messages and just send the first page each time
 
@@ -139,12 +131,6 @@ DeviceProfile_SDM.prototype = {
 
             case 1: // Main page
 
-                this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] = 0;
-
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] === 2)
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] = 1;
-                else
-                  this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"]++;
 
                 page.pageType = "Main";
 
@@ -172,10 +158,9 @@ DeviceProfile_SDM.prototype = {
                 //else this.deviceProfile.connectedSensor[this.channelID.toProperty].strideCountWasUpdated = false;
 
                // else console.log("SKIPPED DUPLICATE MSG on web socket");
-                this.deviceProfile.connectedSensor[this.channelID.toProperty].previousStrideCount = page.strideCount;
-
+                
                 // Time starts when SDM is powered ON
-                msg = this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"]+" "+page.pageType+ " "+page.dataPageNumber+ " ";
+                msg = page.pageType+ " "+page.dataPageNumber+ " ";
                 if (page.time !== UNUSED)
                     msg += "SDM Time : " + page.time + " s";
                 else
@@ -206,13 +191,6 @@ DeviceProfile_SDM.prototype = {
                 break;
 
             case 2: // Base template 
-
-                this.deviceProfile.connectedSensor[this.channelID.toProperty]["page1"] = 0;
-
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] === 2)
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] = 1;
-                else
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"]++;
 
                 page.pageType = "Background";
 
@@ -270,7 +248,7 @@ DeviceProfile_SDM.prototype = {
                   this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
 
-                msg = this.deviceProfile.connectedSensor[this.channelID.toProperty]["page2"] + " " + page.pageType + " " + page.dataPageNumber + " ";
+                msg =  page.pageType + " " + page.dataPageNumber + " ";
 
                 if (page.cadence !== UNUSED)
                     msg += "Cadence : " + page.cadence.toFixed(1) + " strides/min ";
@@ -292,10 +270,6 @@ DeviceProfile_SDM.prototype = {
 
             case 0x50: // 80 Common data page - Manufactorer's identification - REQUIRED - sent every 65 messages
 
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] === 2)
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] = 1;
-                else
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"]++;
 
                 page.pageType = "Background";
                 page.HWRevision = data[startOfPageIndex + 3];
@@ -306,16 +280,11 @@ DeviceProfile_SDM.prototype = {
                // if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] === 1)
                  this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
-                console.log(Date.now() + " " + this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x50"] + " " + page.pageType + " " + page.dataPageNumber + " HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
+                console.log(Date.now() + " " + page.pageType + " " + page.dataPageNumber + " HW revision: " + page.HWRevision + " Manufacturer ID: " + page.manufacturerID + " Model : " + page.modelNumber);
 
                 break;
 
             case 0x51: // 81 Common data page - Product information - REQUIRED - sent every 65 messages
-
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] === 2)
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] = 1;
-                else
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"]++;
 
                 page.pageType = "Background";
                 page.SWRevision = data[startOfPageIndex + 3];
@@ -325,20 +294,14 @@ DeviceProfile_SDM.prototype = {
                   this.nodeInstance.broadCastOnWebSocket(JSON.stringify(page)); // Send to all connected clients
 
                 if (page.serialNumber === 0xFFFFFFFF)
-                    console.log(Date.now() + " " + this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] + " " + page.pageType + " " + page.dataPageNumber + " SW revision : " + page.SWRevision + " No serial number");
+                    console.log(Date.now() + " "  +page.pageType + " " + page.dataPageNumber + " SW revision : " + page.SWRevision + " No serial number");
                 else
-                    console.log(Date.now() + " " + this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x51"] + " " + page.pageType + " " + page.dataPageNumber + " SW revision : " + page.SWRevision + " Serial number: " + page.serialNumber);
+                    console.log(Date.now() + " " + page.pageType + " " + page.dataPageNumber + " SW revision : " + page.SWRevision + " Serial number: " + page.serialNumber);
 
                 break;
 
             case 0x52: // 82 Common data page - Battery Status
                 //console.log("Battery status : ",data);
-
-                if (this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] === 2)
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] = 1;
-                else
-                    this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"]++;
-
                 page.pageType = "Background";
                 page.descriptive = {
                     coarseVoltage: data[startOfPageIndex + 7] & 0x0F,        // Bit 0-3
@@ -382,7 +345,7 @@ DeviceProfile_SDM.prototype = {
                         return ""+voltage;
                 }
 
-                console.log(Date.now()+" "+this.deviceProfile.connectedSensor[this.channelID.toProperty]["page0x52"] + " " + page.pageType + " " + page.dataPageNumber + " Cumulative operating time (s): " + page.cumulativeOperatingTime + " Battery (V) " + batteryVoltageToString(page.batteryVoltage) + " Battery status: " + msg);
+                console.log(Date.now()+" "+ page.pageType + " " + page.dataPageNumber + " Cumulative operating time (s): " + page.cumulativeOperatingTime + " Battery (V) " + batteryVoltageToString(page.batteryVoltage) + " Battery status: " + msg);
                 break;
 
             default:

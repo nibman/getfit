@@ -2,7 +2,7 @@
 
 var DeviceProfile = require('./deviceProfile.js');
 var CRC = require('./crc.js');
-var ANT = require('./ant-lib');
+var ANT = require('ant-lib');
 var fs = require('fs');
 var Channel = require('./channel.js');
 var Network = require('./network.js');
