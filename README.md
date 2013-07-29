@@ -29,14 +29,16 @@ node getFIT -d
 node getFIT -b
 
   uses background scanning channel for ANT+ and establishes a channel when a new device/master is found. Data is written to websocket
-  localhost:8093 based on device profile i.e HRM/SDM4 or SPDCAD
+  on websocket at i.e localhost:8093 (hostname/port can be change by editing configuration.json)
   
 node getFIT -c
 
-  uses a continous scanning channel for ANT+ and writes data to websocket on localhost:8093 based on deviceprofile
+  uses a continous scanning channel for ANT+ and writes data to websocket on i.e localhost:8093
   
 node getFIT -e 10
 
   erase file at index 10
   
-Some support for visualizing data from sensors are available using "Live stream" in FITView https://github.com/hkskoglund/FITView or http://fitview.azurewebsites.net
+Support for visualizing data from sensors are available using "Live stream" in FITView https://github.com/hkskoglund/FITView or http://fitview.azurewebsites.net.
+Currently testing has been done on device profile for HRM, SDM4 and SPDCAD (GSC-10). SDM4 sends background pages with
+sensor health and battery status. A low battery will be visualized with an icon. as well as SDM health statues other than OK.
