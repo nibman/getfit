@@ -178,8 +178,8 @@ function GetFIT() {
 
     VERSION: "0.1",
 
-    WEBSOCKET_HOST: 'localhost',
-    WEBSOCKET_PORT: 8093,
+    //WEBSOCKET_HOST: 'localhost',
+    //WEBSOCKET_PORT: 8093,
 
     getWebSocketServer : function ()
     {
@@ -193,7 +193,7 @@ function GetFIT() {
          //console.log(self.wss);
 
          if (typeof self.wss === "undefined") {
-             console.warn(Date.now()+" WEBSOCKET: no websocket server available on "+GetFIT.prototype.WEBSOCKET_HOST+":"+GetFIT.prototype.WEBSOCKET_PORT," broadcast failed ", data);
+             console.warn(Date.now()+" WEBSOCKET: no websocket server available on "+self.configuration.websocket.host+":"+self.configuration.websocket.port," broadcast failed ", data);
              return;
          }
 
@@ -328,19 +328,30 @@ function GetFIT() {
 
     startWebSocketServer: function () {
         var self = this;
+
+        if (typeof self.configuration.websocket === "undefined") {
+            console.warn(Date.now(), "No websocket configuration specified in configuration.json, will not broadcast sensor data on websocket");
+            return;
+        } else if (typeof self.configuration.websocket.host === "undefined") {
+            console.warn(Date.now(), "No hostname websocket configuration specified in configuration.json, will not broadcast sensor data on websocket");
+            return;
+        } else if (typeof self.configuration.websocket.port === "undefined") {
+            console.warn(Date.now(), "No port websocket configuration specified in configuration.json, will not broadcast sensor data on websocket");
+            return;
+        }
         // Start websocket server
 
         var WebSocketServer = require('ws').Server;
         if (typeof WebSocketServer === "undefined") {
-            console.error(Date.now() + " Failed to load websocket module");
+            console.error(Date.now() + " Failed to load websocket module - ws");
             return;
         }
 
         // Client tracking keeps track of websocket server clients in "clients" property -> removed on 'close'
-        self.wss = new WebSocketServer({ host: GetFIT.prototype.WEBSOCKET_HOST, port: GetFIT.prototype.WEBSOCKET_PORT, clientTracking: true });
+        self.wss = new WebSocketServer({ host: self.configuration.websocket.host, port: self.configuration.websocket.port, clientTracking: true });
 
         self.wss.on('listening', function () {
-            console.log(Date.now()+ " WebSocketServer: listening on " + GetFIT.prototype.WEBSOCKET_HOST + ":" + GetFIT.prototype.WEBSOCKET_PORT);
+            console.log(Date.now() + " WebSocketServer: listening on " + self.configuration.websocket.host + ":" + self.configuration.websocket.port);
         });
 
         self.wss.on('connection', function (ws) {
