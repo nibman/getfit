@@ -266,10 +266,13 @@ function GetFIT() {
                 //    ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANTFS_FREQUENCY, Network.prototype.NETWORK_KEY.ANTFS));
 
                 //self.ANT.setChannelConfiguration(1, self.deviceProfile_HRM.getSlaveChannelConfiguration(Network.prototype.ANT,      0, 0, 0, Math.round(15/2.5)));
-            else self.ANT.setChannelConfiguration(0, self.deviceProfile_ANTFS.getSlaveChannelConfiguration(0, 0,
+            else {
+                console.log(Date.now(), "Listening for ANT-FS host on channel 0");
+                self.ANT.setChannelConfiguration(0, self.deviceProfile_ANTFS.getSlaveChannelConfiguration(0, 0,
                 // Timeout : Math.round(60 / 2.5)
                 Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
                 ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY));
+            }
         //////self.ANT.setChannelConfiguration(2,self.deviceProfile_SDM.getSlaveChannelConfiguration(Network.prototype.ANT, 2, 0, 0, ANT.prototype.INFINITE_SEARCH));
         //self.ANT.setChannelConfiguration(3,self.deviceProfile_SPDCAD.getSlaveChannelConfiguration(Network.prototype.ANT, 3, 0, 0, ANT.prototype.INFINITE_SEARCH));
 
@@ -303,17 +306,20 @@ function GetFIT() {
                 });
         };
 
-        if (this.useBackgroundScanningChannel)
+        if (this.useBackgroundScanningChannel) {
             self.ANT.activateChannelConfiguration(0, function error(err) { console.log("Could not configure background scanning channel ANT+ ", err); },
                 function successCB(data) {
                     openChannel();
                 });
+            this.startWebSocketServer();
+        }
 
         else if (this.useContinousScanningChannel) {
             self.ANT.activateChannelConfiguration(0, function error(err) { console.log("Could not configure continous scanning channel ANT+ ", err); },
                 function successCB(data) {
                     openChannel();
                 });
+            this.startWebSocketServer();
         }
 
         else
@@ -321,8 +327,6 @@ function GetFIT() {
                 function successCB() {
                     openChannel();
                 });
-
-        this.startWebSocketServer();
 
     },
 
