@@ -42,7 +42,8 @@ USAGE:
 Support for visualizing data from sensors are available using "Live stream" in FITView https://github.com/hkskoglund/FITView or http://fitview.azurewebsites.net.
 Currently testing has been done on device profile for HRM, SDM4 and SPDCAD (GSC-10). SDM4 sends background pages with
 sensor health and battery status. A low battery will be visualized with an icon and SDM health statues other than OK will be
-reported.
+reported. If FIT settings are imported into FITView, calibration factors for bike wheelsize or footpod is taken into account
+when calculating speed and distance.
 
 <b>configuration.json</b>
 
