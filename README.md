@@ -29,7 +29,7 @@ USAGE:
 <b>node getFIT -b</b>
 
   uses background scanning channel for ANT+ and establishes a channel when a new device/master is found. Data is written to websocket
-  on websocket at i.e localhost:8093 (hostname/port can be change by editing configuration.json)
+  on i.e localhost:8093 (hostname/port can be change by editing configuration.json)
   
 <b>node getFIT -c</b>
 
@@ -43,3 +43,6 @@ Support for visualizing data from sensors are available using "Live stream" in F
 Currently testing has been done on device profile for HRM, SDM4 and SPDCAD (GSC-10). SDM4 sends background pages with
 sensor health and battery status. A low battery will be visualized with an icon and SDM health statues other than OK will be
 reported.
+
+<b>configuration.json</b>
+JSON file for configuration of ANT+/ANT-FS network keys and websocket server hostname and port.
