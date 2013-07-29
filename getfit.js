@@ -145,7 +145,28 @@ function GetFIT() {
     }
 
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
-    this.ANT = new ANT(4047, 4104, this);
+    if (typeof self.configuration.usb === "undefined")
+    {
+        console.warn(Date.now(),"Found no USB configuration for vendor id. and product id for USB ANT device, setting default Garmin USB2 Wireless ANT+");
+        self.configuration.usb = {
+            idVendor : 4047,
+            idProduct : 4104
+        }
+    } 
+    
+    if (typeof self.configuration.usb.idVendor === "undefined")
+    {
+        console.warn(Date.now(),"Found no vendor id. for USB ANT device, setting default Garmin USB2 Wireless ANT+  = 4047");
+        self.configuration.usb.idVendor = 4047;
+    }
+    
+    if (typeof self.configuration.usb.idProduct === "undefined") {
+        console.warn(Date.now(), "Found no product id. for USB ANT device, setting default Garmin USB2 Wireless ANT+  = 4104");
+        self.configuration.usb.idProduct = 4104;
+    }
+
+
+    this.ANT = new ANT(self.configuration.usb.idVendor, self.configuration.usb.idProduct, this);
 
     //this.backgroundScanningChannelANTFS = new BackgroundScanningChannel(this);
     if (this.useBackgroundScanningChannel)
