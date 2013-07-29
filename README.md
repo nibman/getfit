@@ -45,4 +45,5 @@ sensor health and battery status. A low battery will be visualized with an icon 
 reported.
 
 <b>configuration.json</b>
+
 JSON file for configuration of ANT+/ANT-FS network keys and websocket server hostname and port.
