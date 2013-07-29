@@ -178,8 +178,8 @@ function GetFIT() {
 
     VERSION: "0.1",
 
-    //WEBSOCKET_HOST: 'localhost',
-    //WEBSOCKET_PORT: 8093,
+    DEFAULT_WEBSOCKET_HOST: 'localhost',
+    DEFAULT_WEBSOCKET_PORT: 8093,
 
     getWebSocketServer : function ()
     {
@@ -337,11 +337,12 @@ function GetFIT() {
             console.warn(Date.now(), "No websocket configuration specified in configuration.json, will not broadcast sensor data on websocket");
             return;
         } else if (typeof self.configuration.websocket.host === "undefined") {
-            console.warn(Date.now(), "No hostname websocket configuration specified in configuration.json, will not broadcast sensor data on websocket");
-            return;
+            console.warn(Date.now(), "No websocket hostname specified in configuration.json, default hostname "+GetFIT.prototype.DEFAULT_WEBSOCKET_HOST +" used");
+            self.configuration.websocket.host = GetFIT.prototype.DEFAULT_WEBSOCKET_HOST;
+          
         } else if (typeof self.configuration.websocket.port === "undefined") {
-            console.warn(Date.now(), "No port websocket configuration specified in configuration.json, will not broadcast sensor data on websocket");
-            return;
+            console.warn(Date.now(), "No websocket port specified in configuration.json, default port "+ GetFIT.prototype.DEFAULT_WEBSOCKET_PORT+" used");
+            self.configuration.websocket.port = GetFIT.prototype.DEFAULT_WEBSOCKET_PORT;
         }
         // Start websocket server
 
@@ -355,11 +356,11 @@ function GetFIT() {
         self.wss = new WebSocketServer({ host: self.configuration.websocket.host, port: self.configuration.websocket.port, clientTracking: true });
 
         self.wss.on('listening', function () {
-            console.log(Date.now() + " WebSocketServer: listening on " + self.configuration.websocket.host + ":" + self.configuration.websocket.port);
+            console.log(Date.now() + " Live streaming sensor ANT+ pages - WebSocketServer: listening on " + self.configuration.websocket.host + ":" + self.configuration.websocket.port+" for clients");
         });
 
         self.wss.on('connection', function (ws) {
-            console.log(Date.now()," WebSocketServer: New client connected - will receive broadcast data at "+ws.upgradeReq.headers.origin,ws.upgradeReq.url);
+            console.log(Date.now()," Live streaming sensor ANT+ pages - WebSocketServer: New client connected - will receive broadcast data at "+ws.upgradeReq.headers.origin,ws.upgradeReq.url);
             // console.log(ws);
             //self.websockets.push(ws); // Keeps track of all incoming websocket clients
 
