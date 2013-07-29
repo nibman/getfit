@@ -14,7 +14,8 @@ var
     BackgroundScanningChannel = require('./backgroundScanningChannel.js'),
     ContinousScanningChannel = require('./continousScanningChannel.js'),
     Network = require('./network.js'),
-    Channel = require('./channel.js');
+    Channel = require('./channel.js'),
+    fs = require('fs')
 
 
 
@@ -22,9 +23,14 @@ function GetFIT() {
 
     console.log("GetFIT version "+ GetFIT.prototype.VERSION, "node version",process.versions.node,"V8",process.versions.v8,"on "+process.platform+" "+process.arch);
 
-    var self = this;
+    
+    var self = this,
+         configurationFileName,
+        configurationRaw;
+
     self.commandQueue = [];
-    self.commandIndex = [];
+    self.commandIndex = [],
+   
 
     //if (process.argv.length <= 2) {
     //    showUsage();
@@ -69,7 +75,23 @@ function GetFIT() {
     }
 
     GetFIT.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
-    console.log(Date.now()+ " Process startup directory :", GetFIT.prototype.STARTUP_DIRECTORY);
+    console.log(Date.now() + " Process startup directory :", GetFIT.prototype.STARTUP_DIRECTORY);
+
+
+    // Read configuration
+
+    configurationFileName = GetFIT.prototype.STARTUP_DIRECTORY + '\\configuration.json';
+    if (fs.existsSync(configurationFileName)) {
+        configurationRaw = fs.readFileSync(configurationFileName);
+        //console.log(configurationRaw.toString());
+        self.configuration = JSON.parse(configurationRaw);
+        //console.log(self.configuration);
+    } else {
+        console.log("Did not find configuration filename ", configurationFileName);
+        process.exit(GetFIT.prototype.ERROR.CONFIGURATION_NOT_FOUND);
+    }
+
+    
 
    // console.log("argv", process.argv);
 
@@ -148,7 +170,11 @@ function GetFIT() {
     self.ANT.init(errorCB, successCB);
 }
 
-GetFIT.prototype = {
+    GetFIT.prototype = {
+
+        ERROR : {
+            "CONFIGURATION_NOT_FOUND" : 0x01
+        },
 
     VERSION: "0.1",
 
@@ -226,14 +252,14 @@ GetFIT.prototype = {
            
             self.ANT.setChannelConfiguration(0, self.continousScanningChannelANT.getSlaveChannelConfiguration(0, 0,
                 Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
-                ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANT_FREQUENCY, Network.prototype.NETWORK_KEY.ANT));
+                ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANT_FREQUENCY, new Buffer(self.configuration.network_keys.ANT_PLUS)));
         }
         else
 
             if (this.useBackgroundScanningChannel)
                 self.ANT.setChannelConfiguration(0, self.backgroundScanningChannelANT.getSlaveChannelConfiguration(0, 0,
                     Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
-                    ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANT_FREQUENCY, Network.prototype.NETWORK_KEY.ANT));
+                    ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH, GetFIT.prototype.STARTUP_DIRECTORY, ANT.prototype.ANT_FREQUENCY, new Buffer(self.configuration.network_keys.ANT_PLUS)));
 
                 //self.ANT.setChannelConfiguration(1, self.backgroundScanningChannelANTFS.getSlaveChannelConfiguration(1, 1,
                 //    Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD, Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD, Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
