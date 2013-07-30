@@ -1,16 +1,23 @@
 PRE-REQUISITE:
 
   - node.js http://nodejs.org/, tested on v 0.10.xx
-  - bindings https://npmjs.org/package/bindings
   - ANT USB2 Wireless Stick nRF24AP2-USB-ANT http://www.nordicsemi.com/eng/Products/ANT/nRF24AP2-USB
   - LIBUSB-drivers, i.e Windows platform : Zadig http://sourceforge.net/projects/libwdi/files/zadig/
   
 DEPENDENT-LIBRARIES
 
-  - Interface for LIBUSB - node usb https://github.com/nonolith/node-usb
-  - Websocket - ws https://github.com/einaros/ws
+  - Interface for LIBUSB - <b>usb</b> https://github.com/nonolith/node-usb
+  - Websocket - <b>ws</b> https://github.com/einaros/ws
   
-Tested on Windows 8 only, may work on Linux/Mac with recompilation of native libraries
+Tested on Windows 8 <b>X64</b>, may work on Linux/Mac/win32 with recompilation of native libraries
+
+BUILDING/INSTALLING NATIVE LIBRARIES ON VISUAL STUDIO DESKTOP/2012
+
+Based on info. from http://stackoverflow.com/questions/14278417/cannot-install-node-modules-that-require-compilation-on-windows-7-x64-vs2012
+
+npm install usb --msvs_version=2012
+or
+node-gyp rebuild --msvs_version=2012
 
 USAGE:
 
@@ -41,10 +48,10 @@ USAGE:
   
 Support for visualizing data from sensors are available using "Live stream" in FITView https://github.com/hkskoglund/FITView or http://fitview.azurewebsites.net.
 Currently testing has been done on device profile for HRM, SDM4 and SPDCAD (GSC-10). SDM4 sends background pages with
-sensor health and battery status. A low battery will be visualized with an icon and SDM health statues other than OK will be
+sensor health and battery status. A low battery is visualized with an icon and SDM health statues other than OK will be
 reported. If FIT settings are imported into FITView, <i>calibration</i> factors for bike wheelsize or footpod is taken into account
 when calculating speed and distance.
 
 <b>configuration.json</b>
 
-JSON file for configuration of ANT+/ANT-FS network keys and websocket server hostname and port.
+JSON file for configuration of ANT+/ANT-FS network keys, websocket server hostname and port, and usb vendor/product id.
