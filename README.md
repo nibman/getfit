@@ -11,6 +11,14 @@ DEPENDENT-LIBRARIES
   
 Tested on Windows 8 <b>X64</b>, may work on Linux/Mac/win32 with recompilation of native libraries
 
+BUILDING/INSTALLING NATIVE LIBRARIES ON VISUAL STUDIO DESKTOP/2012
+
+Based on info. from http://stackoverflow.com/questions/14278417/cannot-install-node-modules-that-require-compilation-on-windows-7-x64-vs2012
+
+npm install usb --msvs_version=2012
+or
+node-gyp rebuild --msvs_version=2012
+
 USAGE:
 
 <b>node getfit</b> 
