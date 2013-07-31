@@ -33,47 +33,7 @@ function GetFIT() {
     self.commandIndex = [],
    
 
-    //if (process.argv.length <= 2) {
-    //    showUsage();
-    //    return;
-    //}
-
-    //function parseIndex(indexArg) {
-
-    //    var parsed = indexArg.split(',').map(function (value, index, arr) {
-    //        var range = value.split('-'), low, high, newarr = [], v;
-    //        if (range.length === 2) {
-    //            low = parseInt(range[0],10);
-    //            high = parseInt(range[1], 10);
-
-    //            if (low < high)
-    //                for (var nr = low; nr <= high; nr++)
-    //                    newarr.push(nr);
-
-    //            return newarr;
-    //        } else
-
-    //            v = parseInt(value, 10); if (!isNaN(v)) return v;
-    //    }),
-    //    elementNr, rangeArr, rangeElementNr, indexArr = [] ;
-
-    //    //console.log("Parsed", parsed);
-
-    //    for (elementNr = 0; elementNr < parsed.length; elementNr++)
-    //        if (typeof parsed[elementNr] === 'object') // Process range
-    //        {
-    //            rangeArr = parsed[elementNr];
-    //            for (rangeElementNr = 0; rangeElementNr < rangeArr.length; rangeElementNr++)
-    //                if (typeof rangeArr[rangeElementNr] === 'number')
-    //                    indexArr.push(rangeArr[rangeElementNr]);
-    //        }
-    //        else if (typeof parsed[elementNr] === 'number')
-    //            indexArr.push(parsed[elementNr]);
-
-    //    //console.log("Index arr",indexArr);
-
-    //    return indexArr;
-    //}
+   
 
     GetFIT.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf('\\'));
     console.log(Date.now() + " Process startup directory :", GetFIT.prototype.STARTUP_DIRECTORY);
@@ -135,58 +95,6 @@ function GetFIT() {
         console.log(Date.now(), "Using continous scan mode for ANT+ devices");
         this.useContinousScanningChannel = true;
     }
-
-    // console.log("argv", process.argv);
-   // console.log(parseIndex(process.argv[3]));
-
-    //if (process.argv[2] === "-d" || process.argv[2] === "--download") {
-    //    if (typeof process.argv[3] === "undefined") {
-    //        console.log(Date.now(),"Adding DOWNLOAD NEW command to queue");
-    //        self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_NEW);
-    //    } else if (process.argv[3] === "*") {
-    //        console.log(Date.now(),"Adding DOWNLOAD ALL command to queue");
-    //        self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_ALL);
-    //    }
-    //    else {
-    //        console.log(Date.now(),"Adding DOWNLOAD MULTIPLE command to queue");
-    //        self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_MULTIPLE); // i.e '1,2,3'
-    //        //argNr = 3;
-    //        self.commandIndex.push(parseIndex(process.argv[3]));
-    //    }
-
-
-    //} else if (process.argv[2] === "-e" || process.argv[2] === "--erase") {
-    //    console.log(Date.now(),"Adding ERASE command to queue");
-    //    self.commandQueue.push(DeviceProfile_ANTFS.prototype.NODECOMMAND.ERASE_MULTIPLE);
-    //    if (typeof process.argv[3] === "undefined") {
-    //        console.log("Missing file index/range");
-    //        showUsage();
-    //        return;
-    //    } else
-    //        self.commandIndex.push(parseIndex(process.argv[3]));
-
-    //} else if (process.argv[2] === "-b" || process.argv[2] === "--background") {
-    //    console.log(Date.now(),"Using background search channel for ANT+ devices");
-    //    this.useBackgroundScanningChannel = true;
-    //} else if (process.argv[2] === "-c" || process.argv[2] === "--continous") {
-    //    console.log(Date.now(), "Using continous scan mode for ANT+ devices");
-    //    this.useContinousScanningChannel = true;
-    //}
-    ////else {
-    ////    showUsage();
-    ////    return;
-    ////}
-
-    //function showUsage() {
-    //    console.log("Commands :");
-    //    console.log("   -d, --download - download new files from device");
-    //    console.log("   -d n - download file at index n");
-    //    console.log("   -d 'n1,n2,n3-n4' -download file at index n1 and n2 and n3 to n4");
-    //    console.log("   -d * - download all readable files");
-    //    console.log("   -e, --erase  n1 - erase file at index n1");
-    //    console.log("   -b, --background - background scanning channel for ANT+ devices");
-    //    console.log("   -c, --continous - continous scanning channel for ANT+ devices");
-    //}
 
     // var idVendor = 4047, idProduct = 4104; // Garmin USB2 Wireless ANT+
     if (typeof self.configuration.usb === "undefined")
