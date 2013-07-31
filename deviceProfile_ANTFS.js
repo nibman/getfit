@@ -1532,10 +1532,10 @@ DeviceProfile_ANTFS.prototype = {
                                                 else if (currentCommand === DeviceProfile_ANTFS.prototype.NODECOMMAND.DOWNLOAD_MULTIPLE) {
 
                                                     genericIndex = self.nodeInstance.commandIndex[0];
-                                                    console.log("genericIndex", genericIndex);
+                                                   // console.log("genericIndex", genericIndex);
                                                 }
 
-                                                if (genericIndex.length > 0) {
+                                                if (typeof genericIndex !== "undefined" && genericIndex.length > 0) {
                                                     self.deviceProfile.downloadMultipleFiles.call(self, genericIndex, function complete() {
                                                         //console.log(Date.now() + " Downloaded new files");
                                                         delete self.deviceProfile.processingCommand; // Allow processing of next command
