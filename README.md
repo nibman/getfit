@@ -13,13 +13,24 @@ DEPENDENT-LIBRARIES
   
 Tested on Windows 8 <b>X64</b>, may work on Linux/Mac/win32 with recompilation of native libraries
 
-BUILDING/INSTALLING NATIVE LIBRARIES ON VISUAL STUDIO DESKTOP/2012
+BUILDING/INSTALLING NATIVE LIBRARIES WITH VISUAL STUDIO DESKTOP 2012 EXPRES
 
 Based on info. from http://stackoverflow.com/questions/14278417/cannot-install-node-modules-that-require-compilation-on-windows-7-x64-vs2012
 
-npm install usb --msvs_version=2012
+npm install usb --msvs_version=2012e
 or
-node-gyp rebuild --msvs_version=2012
+node-gyp rebuild --msvs_version=2012e
+
+POWERSHELL:
+
+Instead of using the msvs_version option for node-gyp, the GYP_MSVS_VERSION environment variable can be set to 2012e/2012 for the 
+user/machine-profile to make this permanent.
+
+  [Environment]::SetEnvironmentVariable("GYP_MSVS_VERSION","2012e","User")
+  
+Restart powershell to activate. 
+
+The detailed algorithm for detecting visual studio versions is available at; https://github.com/TooTallNate/node-gyp/blob/master/gyp/pylib/gyp/MSVSVersion.py#L200-L265
 
 USAGE:
 
