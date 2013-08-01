@@ -110,7 +110,7 @@ function GetFIT() {
         self.configuration.usb.idProduct = 4104;
     }
 
-    this.ANT = new ANT(self.configuration.usb.idVendor, self.configuration.usb.idProduct, this);
+    this.ANT = new ANT(self.configuration.usb.idVendor, self.configuration.usb.idProduct);
 
     //if (this.useBackgroundScanningChannel)
     //    this.backgroundScanningChannelANT = new BackgroundScanningChannel(this);
