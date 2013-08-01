@@ -1,0 +1,34 @@
+﻿{
+  "name": "getfit",
+  "version": "0.1.0",
+  "description": "get FIT files over USB/ANT and streaming of sensor ANT+ pages on websocket",
+   "author": {
+      "name" : "Henning Knut Skoglund",
+      "email" : "hkskoglund@gmail.com"
+  },
+ "preferGlobal": false,
+ "private" : true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hkskoglund/getFIT.git"
+  },
+ "bin" : { "getfit" : "./getfit.js" },
+  "keywords": [
+    "cli",
+    "ant",
+    "usb",
+    "ant+",
+    "websocket"
+  ],
+  "dependencies" : {
+    "ws"   :  ">=0.4.27",
+    "commander" :  ">=2.0.0",
+    "ant-lib" : "git://github.com/hkskoglund/ANT-lib.git"
+    },
+  "bugs" : 
+        { "url" : "https://github.com/hkskoglund/getFIT/issues" },
+  "license": "MIT",
+  "engines": {
+    "node": ">=0.10"
+  }
+}
