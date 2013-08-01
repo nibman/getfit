@@ -12,7 +12,7 @@
     "type": "git",
     "url": "https://github.com/hkskoglund/getFIT.git"
   },
- "bin" : { "getfit" : "./getfit.js" },
+ "bin" : "./bin/getfit.js",
   "keywords": [
     "cli",
     "ant",
