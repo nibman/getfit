@@ -3,6 +3,9 @@ PRE-REQUISITE:
   - node.js http://nodejs.org/, tested on v 0.10.xx
   - node-gyp package for building native modules https://npmjs.org/package/node-gyp
   - ANT USB2 Wireless Stick nRF24AP2-USB-ANT http://www.nordicsemi.com/eng/Products/ANT/nRF24AP2-USB
+
+Windows-development:
+
   - LIBUSB-drivers, i.e Windows platform : Zadig http://sourceforge.net/projects/libwdi/files/zadig/
   - Visual Studio Desktop Express 2012 C++ compiler/IDE
   
@@ -13,7 +16,7 @@ DEPENDENT-LIBRARIES
   
 Tested on Windows 8 <b>X64</b>, may work on Linux/Mac/win32 with recompilation of native libraries
 
-BUILDING/INSTALLING NATIVE LIBRARIES WITH VISUAL STUDIO DESKTOP 2012 EXPRES
+BUILDING/INSTALLING NATIVE LIBRARIES WITH VISUAL STUDIO DESKTOP 2012 EXPRESS
 
 Based on info. from http://stackoverflow.com/questions/14278417/cannot-install-node-modules-that-require-compilation-on-windows-7-x64-vs2012
 
