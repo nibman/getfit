@@ -5,6 +5,11 @@
             "ANT_PLUS" : ["0xB9", "0xA5", "0x21", "0xFB", "0xBD", "0x72", "0xC3", "0x45"]
     },
 
+	"frequency" : {
+		"ANT_FS" : 50,
+		"ANT_PLUS" : 57
+	},
+
     "websocket" : {
         "host" : "localhost",
         "port" : 8093
