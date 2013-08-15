@@ -32,6 +32,12 @@ function GetFIT() {
     // require.main === module if run directly via "node getfit"
     if (runDirectly) {
 
+        self.noopWaitID = setInterval(function _noop() {}, 60*1000*60*24);
+
+        process.on('SIGINT', function _sigint() {
+            clearInterval(self.noopWaitID);
+        });
+
         console.log("GetFIT version " + GetFIT.prototype.VERSION, "PID",process.pid,"node version", process.versions.node, "V8", process.versions.v8, "on " + process.platform + " " + process.arch);
 
         GetFIT.prototype.STARTUP_DIRECTORY = process.argv[1].slice(0, process.argv[1].lastIndexOf(PathSeparator));
@@ -121,18 +127,31 @@ GetFIT.prototype = {
         if (typeof index !== "undefined") {
             this.ANTFS_profile.addIndex(index);
         }
-        this.ANTFS_profile.initANT(function _cb () {
-            console.log(Date.now(), "Enabling channel for ANT_FS client");
-            self.enableChannelConfiguration(self.getSlaveChannelConfiguration({
-                "networkNr": 0,
-                "channelNr": 0,
-                // Timeout : Math.round(60 / 2.5)
-                "deviceNr": Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD,
-                "deviceType": Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD,
-                "transmissionType": Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
-                "searchTimeoutHP": ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH
-            }));
-        });
+
+        //try {
+        this.ANTFS_profile.initANT(function _initANTCB (error) {
+            
+            if (error){
+                //console.trace();
+                console.log("Exit.",error);
+                process.exit();
+            }
+                console.log(Date.now(), "Enabling channel for ANT_FS client");
+                self.enableChannelConfiguration(self.getSlaveChannelConfiguration({
+                    "networkNr": 0,
+                    "channelNr": 0,
+                    // Timeout : Math.round(60 / 2.5)
+                    "deviceNr": Channel.prototype.CHANNELID.DEVICE_NUMBER_WILDCARD,
+                    "deviceType": Channel.prototype.CHANNELID.DEVICE_TYPE_WILDCARD,
+                    "transmissionType": Channel.prototype.CHANNELID.TRANSMISSION_TYPE_WILDCARD,
+                    "searchTimeoutHP": ANT.prototype.SEARCH_TIMEOUT.INFINITE_SEARCH
+                }));
+            });
+        //} catch (err)
+        //{
+        //    console.log("ERROR",err);
+        //    console.trace();
+        //}
     },
 
     getConfiguration : function ()
