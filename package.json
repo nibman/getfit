@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "getfit",
   "version": "0.1.0",
   "description": "get FIT files over USB/ANT-FS and streaming of sensor ANT+ pages on websocket",
@@ -27,7 +27,7 @@
   "dependencies" : {
     "ws"   :  ">=0.4.27",
     "commander" :  ">=2.0.0",
-    "ant-lib" : "git://github.com/hkskoglund/ANT-lib.git"
+    "ant-lib" : "git://github.com/hkskoglund/libant.git"
     },
   "bugs" : 
         { "url" : "https://github.com/hkskoglund/getFIT/issues" },
